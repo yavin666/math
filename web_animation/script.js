@@ -13,8 +13,8 @@ const data = [
 
 // Configuration
 const config = {
-    svgWidth: 3000, 
-    svgHeight: 1600, 
+    svgWidth: 2200, 
+    svgHeight: 1200, 
     margin: { top: 100, right: 120, bottom: 160, left: 180 }, // Increased margins for labels
     colors: {
         green: "#2e7d32",
@@ -29,7 +29,10 @@ const config = {
     firstValueAlpha: 0,
     specialGrowthEnabled: false,
     growthEmphasis: 0,
-    focusDim: 0
+    focusDim: 0,
+    focusDim10: 0,
+    focusDim11: 0,
+    growthTargetN: null
 };
 
 const specialGrowth = { v10: 500, v11: 582 };
@@ -160,9 +163,20 @@ function updateChartGeometry() {
         const tpBase = Math.max(0, Math.min(1, (config.n - (n - leadPoint)) / leadPoint));
         const tp = (config.dataVisible ? tpBase : 0);
         const firstAlpha = n === 1 ? (config.firstValueAlpha ?? 1) : 1;
-        const emphasis = (config.specialGrowthEnabled && (n === 10 || n === 11)) ? (1 + 0.35 * (config.growthEmphasis ?? 0)) : 1;
+        const growthTargetN = config.growthTargetN;
+        const isGrowthTarget = growthTargetN == null || n === growthTargetN;
+        const emphasis = (config.specialGrowthEnabled && isGrowthTarget && (n === 10 || n === 11)) ? (1 + 0.35 * (config.growthEmphasis ?? 0)) : 1;
         p.setAttribute("transform", `translate(${x} ${y}) scale(${tp * firstAlpha * emphasis})`);
-        p.style.opacity = String(tp * (config.dataAlpha ?? 1) * firstAlpha);
+        let opacity = tp * (config.dataAlpha ?? 1) * firstAlpha;
+        const dim = config.focusDim ?? 0;
+        const dim10 = config.focusDim10 ?? 0;
+        const dim11 = config.focusDim11 ?? 0;
+        if (dim > 0 || dim10 > 0 || dim11 > 0) {
+            if (n === 10) opacity *= (1 - 0.55 * dim10);
+            else if (n === 11) opacity *= (1 - 0.55 * dim11);
+            else opacity *= (1 - 0.55 * dim);
+        }
+        p.style.opacity = String(opacity);
     });
 
     const labels = labelsGroup.querySelectorAll("text.point-label");
@@ -201,14 +215,24 @@ function updateChartGeometry() {
         const firstAlpha = n === 1 ? (config.firstValueAlpha ?? 1) : 1;
         let opacity = tl * (config.dataAlpha ?? 1) * firstAlpha;
         const dim = config.focusDim ?? 0;
-        if (dim > 0 && !(n === 10 || n === 11)) {
-            opacity *= (1 - 0.55 * dim);
+        const dim10 = config.focusDim10 ?? 0;
+        const dim11 = config.focusDim11 ?? 0;
+        if (dim > 0 || dim10 > 0 || dim11 > 0) {
+            if (n === 10) opacity *= (1 - 0.55 * dim10);
+            else if (n === 11) opacity *= (1 - 0.55 * dim11);
+            else opacity *= (1 - 0.55 * dim);
         }
         l.style.opacity = String(opacity);
         l.textContent = String(Math.round(val));
         if (config.specialGrowthEnabled && (n === 10 || n === 11)) {
-            const s = 1 + 0.35 * (config.growthEmphasis ?? 0);
-            l.setAttribute("transform", `translate(${cx} ${labelY}) scale(${s}) translate(${-cx} ${-labelY})`);
+            const growthTargetN = config.growthTargetN;
+            const isGrowthTarget = growthTargetN == null || n === growthTargetN;
+            if (isGrowthTarget) {
+                const s = 1 + 0.35 * (config.growthEmphasis ?? 0);
+                l.setAttribute("transform", `translate(${cx} ${labelY}) scale(${s}) translate(${-cx} ${-labelY})`);
+            } else if (l.hasAttribute("transform")) {
+                l.removeAttribute("transform");
+            }
         } else if (l.hasAttribute("transform")) {
             l.removeAttribute("transform");
         }
@@ -529,13 +553,13 @@ function prepareDataElements() {
         let r = 14;
         let labelColor = config.colors.black;
         let labelWeight = "normal";
-        let labelSize = "40px"; // Increased base size
+        let labelSize = "36px"; // Increased base size
 
         if (d.n === 14) {
             color = config.colors.red;
             labelColor = config.colors.red;
             labelWeight = "normal";
-            labelSize = "40px"; // Increased highlight size
+            labelSize = "36px"; // Increased highlight size
             r = 14;
         }
 
@@ -640,6 +664,9 @@ function startAnimation() {
     config.specialGrowthEnabled = false;
     config.growthEmphasis = 0;
     config.focusDim = 0;
+    config.focusDim10 = 0;
+    config.focusDim11 = 0;
+    config.growthTargetN = null;
     specialGrowth.v10 = 500;
     specialGrowth.v11 = 582;
     updateChartGeometry();
@@ -698,6 +725,8 @@ function startAnimation() {
       // Y Ticks: Fade in
       .to(yGridNonMicro, { duration: 0.5, opacity: 1, stagger: 0.05 }, "<0.2")
       .to(yTicksNonMicro, { duration: 0.5, opacity: 1, stagger: 0.05 }, "<");
+    
+    tl.addLabel("afterAxes");
      
     // 0.5 Reveal Ticks (X and Y axis ticks fade in) - REMOVED (Handled above)
     tl.to(config, {
@@ -720,13 +749,13 @@ function startAnimation() {
         firstValueAlpha: 1,
         duration: 0.35,
         ease: "power1.out"
-    }, "<");
+    }, "<+2.0");
 
     tl.call(() => {
         config.ticksAutoOpacity = true;
     });
 
-    tl.addLabel("phase1");
+    tl.addLabel("phase1", "afterAxes+=3.0");
 
     if (config.cameraEnabled) {
         const rect = chartWrapper.getBoundingClientRect();
@@ -779,19 +808,21 @@ function startAnimation() {
             gsap.set(chartWrapper, { x: v.x, y: v.y, scale: v.s });
         };
 
+        tl.call(applyCamera, [], "afterAxes");
+
         tl.to(camera, {
             p: 2 / 3,
             duration: 9,
             ease: "sine.inOut",
             onUpdate: applyCamera
-        }, 0);
+        }, "afterAxes");
 
         tl.to(camera, {
             p: 1,
             duration: 2.0,
             ease: "sine.inOut",
             onUpdate: applyCamera
-        }, 9);
+        }, "afterAxes+=9");
     }
 
     // 1. Slow start (n=2 to n=14) 
@@ -828,10 +859,19 @@ function startAnimation() {
         specialGrowth.v11 = 582;
         config.growthEmphasis = 0;
         config.focusDim = 0;
+        config.focusDim10 = 0;
+        config.focusDim11 = 0;
+        config.growthTargetN = 10;
     }, [], "final");
     
     tl.to(config, {
         focusDim: 1,
+        duration: 0.9,
+        ease: "sine.inOut"
+    }, "final");
+
+    tl.to(config, {
+        focusDim11: 1,
         duration: 0.9,
         ease: "sine.inOut"
     }, "final");
@@ -852,15 +892,8 @@ function startAnimation() {
 
     tl.to(specialGrowth, {
         v10: 510,
-        v11: 592,
-        duration: 2.4,
-        ease: "none",
-        onComplete: () => {
-            if (!config.cameraEnabled) return;
-            focusTick(true);
-            focusState.active = false;
-            gsap.ticker.remove(focusTick);
-        }
+        duration: 1.25,
+        ease: "sine.inOut"
     }, "final+=1.0");
 
     tl.to(config, {
@@ -870,6 +903,36 @@ function startAnimation() {
         yoyo: true,
         repeat: 1
     }, "final+=1.0");
+
+    tl.to(config, {
+        focusDim10: 1,
+        focusDim11: 0,
+        duration: 0.45,
+        ease: "sine.inOut",
+        onStart: () => {
+            config.growthTargetN = 11;
+        }
+    }, "final+=2.25");
+
+    tl.to(specialGrowth, {
+        v11: 592,
+        duration: 1.25,
+        ease: "sine.inOut",
+        onComplete: () => {
+            if (!config.cameraEnabled) return;
+            focusTick(true);
+            focusState.active = false;
+            gsap.ticker.remove(focusTick);
+        }
+    }, "final+=2.25");
+
+    tl.to(config, {
+        growthEmphasis: 1,
+        duration: 0.18,
+        ease: "power2.out",
+        yoyo: true,
+        repeat: 1
+    }, "final+=2.25");
 }
 
 // Run
