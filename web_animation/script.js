@@ -23,7 +23,8 @@ const config = {
     },
     yMax: 100, 
     n: 2, 
-    maxN: 31
+    maxN: 31,
+    cameraEnabled: true
 };
 
 // Dimensions
@@ -137,56 +138,34 @@ function updateChartGeometry() {
     const xTickLines = axesGroup.querySelectorAll("line.tick-line-x");
     // Opacity handled by GSAP entrance animation, no continuous update needed
 
-    const points = pointsGroup.querySelectorAll("circle.data-point");
+    const points = pointsGroup.querySelectorAll("g.data-point");
     points.forEach((p) => {
         const val = parseFloat(p.dataset.val);
         const n = parseFloat(p.dataset.n);
         const x = xScale(n);
         const y = yScale(val);
-        p.setAttribute("cx", String(x));
-        p.setAttribute("cy", String(y));
 
         const leadPoint = 0.35;
         const tpBase = Math.max(0, Math.min(1, (config.n - (n - leadPoint)) / leadPoint));
         const tp = (config.dataVisible ? tpBase : 0);
-        const targetRadius = parseFloat(p.dataset.targetRadius || "10");
-        p.setAttribute("r", String(targetRadius * tp));
+        p.setAttribute("transform", `translate(${x} ${y}) scale(${tp})`);
         p.style.opacity = String(tp);
     });
 
     const labels = labelsGroup.querySelectorAll("text.point-label");
-    labels.forEach((l, i) => {
-        const point = pointsGroup.querySelector(`#point-${i}`);
-        if (point) {
-            const n = parseFloat(point.dataset.n);
-            const cy = parseFloat(point.getAttribute("cy"));
-            const cx = parseFloat(point.getAttribute("cx"));
-            
-            l.setAttribute("y", String(cy - 40));
-            let xOffset = 0;
-            let yOffset = 0;
+    labels.forEach((l) => {
+        const n = parseFloat(l.dataset.n);
+        const val = parseFloat(l.dataset.val);
+        const cx = xScale(n);
+        const cy = yScale(val);
 
-            if (n === 22 || n === 23) xOffset = -12; // 49896, 93150 左移
-            
-            // Staircase offset for n >= 24 (196560+)
-            if (n >= 24) {
-                const stepA = 20;
-                const stepB = 10;
-                if (n <= 28) {
-                    yOffset = -((n - 24) * stepA);
-                } else {
-                    yOffset = -((28 - 24) * stepA) - ((n - 28) * stepB);
-                }
-            }
+        l.setAttribute("x", String(cx));
+        l.setAttribute("y", String(cy - 40));
 
-            l.setAttribute("x", String(cx + xOffset));
-            l.setAttribute("y", String(cy - 40 + yOffset));
-
-            const leadLabel = 0.55;
-            const tlBase = Math.max(0, Math.min(1, (config.n - (n - leadLabel)) / leadLabel));
-            const tl = (config.dataVisible ? tlBase : 0);
-            l.style.opacity = String(tl);
-        }
+        const leadLabel = 0.55;
+        const tlBase = Math.max(0, Math.min(1, (config.n - (n - leadLabel)) / leadLabel));
+        const tl = (config.dataVisible ? tlBase : 0);
+        l.style.opacity = String(tl);
     });
 
     // Axis Lines
@@ -239,8 +218,8 @@ function syncSvgLayout() {
         yAxisLine.setAttribute("x2", String(config.margin.left));
         yAxisLine.setAttribute("y2", String(config.margin.top));
         // Ensure visibility
-        yAxisLine.style.stroke = "#000";
-        yAxisLine.style.strokeWidth = "2px";
+        // yAxisLine.style.stroke = "#000"; // REMOVED: Handled by CSS .axis class
+        // yAxisLine.style.strokeWidth = "2px"; // REMOVED: Handled by CSS .axis class
         yAxisLine.style.display = "block";
     }
 }
@@ -288,17 +267,17 @@ function ensureSvgDefs() {
 
         const s1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
         s1.setAttribute("offset", "0%");
-        s1.setAttribute("stop-color", config.colors.green);
+        s1.setAttribute("stop-color", "var(--line-green)");
         greenGrad.appendChild(s1);
 
         const s2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
         s2.setAttribute("offset", "70%");
-        s2.setAttribute("stop-color", config.colors.green);
+        s2.setAttribute("stop-color", "var(--line-green)");
         greenGrad.appendChild(s2);
 
         const s3 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
         s3.setAttribute("offset", "100%");
-        s3.setAttribute("stop-color", config.colors.red);
+        s3.setAttribute("stop-color", "var(--line-red)");
         greenGrad.appendChild(s3);
 
         defs.appendChild(greenGrad);
@@ -315,12 +294,12 @@ function ensureSvgDefs() {
 
         const s1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
         s1.setAttribute("offset", "0%");
-        s1.setAttribute("stop-color", config.colors.red);
+        s1.setAttribute("stop-color", "var(--line-red)");
         blackGrad.appendChild(s1);
 
         const s2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
         s2.setAttribute("offset", "100%");
-        s2.setAttribute("stop-color", config.colors.black);
+        s2.setAttribute("stop-color", "var(--line-black)");
         blackGrad.appendChild(s2);
 
         defs.appendChild(blackGrad);
@@ -528,25 +507,41 @@ function prepareDataElements() {
             r = 12;
         }
 
-        // Point
-        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        circle.setAttribute("cx", x);
-        circle.setAttribute("cy", y);
-        circle.setAttribute("r", 0);
-        circle.setAttribute("fill", color);
-        circle.setAttribute("class", "data-point");
-        circle.dataset.targetRadius = r;
-        circle.dataset.n = d.n;
-        circle.dataset.val = d.val;
-        circle.id = `point-${i}`;
-        pointsGroup.appendChild(circle);
+        // Point (reference-style: soft disk + bright core)
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        g.classList.add("data-point");
+        if (d.n === 14) g.classList.add("highlight");
+        g.dataset.targetRadius = r;
+        g.dataset.n = d.n;
+        g.dataset.val = d.val;
+        g.id = `point-${i}`;
+        g.setAttribute("transform", `translate(${x} ${y}) scale(0)`);
+        g.style.opacity = "0";
+
+        const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        halo.classList.add("data-point-halo");
+        halo.setAttribute("cx", "0");
+        halo.setAttribute("cy", "0");
+        halo.setAttribute("r", String(r));
+        g.appendChild(halo);
+
+        const core = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        core.classList.add("data-point-core");
+        core.setAttribute("cx", "0");
+        core.setAttribute("cy", "0");
+        core.setAttribute("r", String(Math.max(2.6, r * 0.18)));
+        g.appendChild(core);
+
+        pointsGroup.appendChild(g);
 
         // Label
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
         text.setAttribute("x", x);
         text.setAttribute("y", y - 28);
-        text.setAttribute("class", "point-label");
-        text.setAttribute("fill", labelColor);
+        text.classList.add("point-label");
+        if (d.n === 14) text.classList.add("highlight");
+        
+        // text.setAttribute("fill", labelColor); // Handled by CSS
         text.setAttribute("font-weight", labelWeight);
         // Force inline font-size to override any CSS specificity issues
         text.style.fontSize = labelSize; 
@@ -568,6 +563,9 @@ function startAnimation() {
         onUpdate: updateChartGeometry
     });
     window.tl = tl;
+
+    const chartWrapper = document.querySelector(".chart-wrapper");
+    gsap.set(chartWrapper, { x: 0, y: 0, scale: 1, transformOrigin: "50% 50%" });
 
     // Initial state
     config.n = 1.0;
@@ -645,18 +643,53 @@ function startAnimation() {
         config.ticksAutoOpacity = true;
     });
 
+    tl.addLabel("phase1");
+
+    if (config.cameraEnabled) {
+        const rect = chartWrapper.getBoundingClientRect();
+        tl.to(chartWrapper, {
+            duration: 1.05,
+            transformOrigin: "0% 100%",
+            scale: 2.35,
+            x: rect.width * 0.22,
+            y: -rect.height * 0.16,
+            ease: "power2.out"
+        }, "phase1+=0.15");
+
+        tl.to(chartWrapper, {
+            duration: 8.0,
+            transformOrigin: "0% 100%",
+            scale: 1.45,
+            x: -rect.width * 0.10,
+            y: -rect.height * 0.06,
+            ease: "none"
+        }, "phase1+=0.35");
+    }
+
     // 1. Slow start (n=2 to n=14) - Stop at 1932 (n=14)
     // Keep number/point progression unchanged; delay only yMax scaling
     tl.to(config, {
         n: 14,
         duration: 8,
         ease: "linear"
-    });
+    }, "phase1");
     tl.to(config, {
         yMax: 2500,
         duration: 8,
         ease: "linear"
-    }, "<+1.00");
+    }, "phase1+=1.00");
+
+    if (config.cameraEnabled) {
+        tl.to({}, { duration: 0.9 }, "phase1+=8");
+        tl.to(chartWrapper, {
+            duration: 1.35,
+            transformOrigin: "50% 50%",
+            scale: 1,
+            x: 0,
+            y: 0,
+            ease: "power2.inOut"
+        }, "phase1+=8.9");
+    }
 
     // 2. The Burst (approaching n=16 and beyond)
     // User wants "burst at ~5000". n=16 is 4320.
@@ -674,4 +707,22 @@ function startAnimation() {
 }
 
 // Run
-window.addEventListener('load', initChart);
+window.addEventListener('load', () => {
+    initChart();
+    
+    // Toggle Mode
+    const toggleBtn = document.getElementById("mode-toggle");
+    toggleBtn.addEventListener("click", () => {
+        document.body.classList.toggle("dark-mode");
+        const isDark = document.body.classList.contains("dark-mode");
+        toggleBtn.textContent = isDark ? "Switch to Light Mode" : "Switch to Dark Mode";
+    });
+
+    const cameraBtn = document.getElementById("camera-toggle");
+    cameraBtn.addEventListener("click", () => {
+        config.cameraEnabled = !config.cameraEnabled;
+        cameraBtn.textContent = config.cameraEnabled ? "Camera: On" : "Camera: Off";
+        if (window.tl) window.tl.kill();
+        initChart();
+    });
+});
