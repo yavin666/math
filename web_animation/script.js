@@ -1,5 +1,6 @@
 // Data Configuration
 const data = [
+    { n: 1, val: 2 },
     { n: 2, val: 6 }, { n: 3, val: 12 }, { n: 4, val: 24 }, { n: 5, val: 40 },
     { n: 6, val: 72 }, { n: 7, val: 126 }, { n: 8, val: 240 }, { n: 9, val: 306 },
     { n: 10, val: 510 }, { n: 11, val: 593 }, { n: 12, val: 840 }, { n: 13, val: 1154 },
@@ -12,9 +13,9 @@ const data = [
 
 // Configuration
 const config = {
-    svgWidth: 2800, 
-    svgHeight: 1200, 
-    margin: { top: 100, right: 120, bottom: 120, left: 120 }, // Increased margins for labels
+    svgWidth: 2400, 
+    svgHeight: 1600, 
+    margin: { top: 100, right: 120, bottom: 160, left: 180 }, // Increased margins for labels
     colors: {
         green: "#2e7d32",
         red: "#d32f2f",
@@ -30,11 +31,11 @@ const width = config.svgWidth - config.margin.left - config.margin.right;
 const height = config.svgHeight - config.margin.top - config.margin.bottom;
 
 // Scales
-const xScale = (n) => config.margin.left + ((n - 2) / (31 - 2)) * width;
+const xScale = (n) => config.margin.left + (n / 31) * width;
 
 const segments = {
-    green: data.slice(0, 15),
-    blackMain: data.slice(14, 18),
+    green: data.slice(0, 14), // n=2 to n=14 (value 1932)
+    blackMain: data.slice(13, 18), // Overlap at n=14 to continue smoothly
     blackLast: data.slice(17, data.length) // Include all remaining points
 };
 
@@ -81,6 +82,12 @@ const buildPathD = (arr, maxN) => {
 };
 
 function updateChartGeometry() {
+    const switchStart = 4500;
+    const switchEnd = 6000;
+    const switchT = Math.max(0, Math.min(1, (config.yMax - switchStart) / (switchEnd - switchStart)));
+    const smallFactor = 1 - switchT;
+    const largeFactor = switchT;
+
     const gridLinesH = gridGroup.querySelectorAll("line.grid-line-h");
     gridLinesH.forEach((line) => {
         const val = parseFloat(line.dataset.value);
@@ -95,7 +102,12 @@ function updateChartGeometry() {
         const isTooHigh = y < config.margin.top;
         const isTooLow = val > 0 && y > (config.svgHeight - config.margin.bottom - 30);
         
-        line.style.opacity = (isTooHigh || isTooLow) ? "0" : "1";
+        if (config.ticksAutoOpacity) {
+            const group = line.dataset.group;
+            const baseOpacity = (isTooHigh || isTooLow) ? 0 : 1;
+            const groupOpacity = (group === "micro" || group === "small") ? smallFactor : (group === "large" ? largeFactor : 1);
+            line.style.opacity = String(baseOpacity * groupOpacity);
+        }
     });
 
     // Remove vertical grid lines (Cleanup per user request)
@@ -111,21 +123,19 @@ function updateChartGeometry() {
         const isTooHigh = y < config.margin.top;
         const isTooLow = val > 0 && y > (config.svgHeight - config.margin.bottom - 40); 
         
-        t.style.opacity = (isTooHigh || isTooLow) ? "0" : "1";
+        if (config.ticksAutoOpacity) {
+            const group = t.dataset.group;
+            const baseOpacity = (isTooHigh || isTooLow) ? 0 : 1;
+            const groupOpacity = (group === "micro" || group === "small") ? smallFactor : (group === "large" ? largeFactor : 1);
+            t.style.opacity = String(baseOpacity * groupOpacity);
+        }
     });
 
     const xTicks = axesGroup.querySelectorAll("text.tick-text[data-n]");
-    xTicks.forEach((t) => {
-        const n = parseFloat(t.dataset.n);
-        // Only show ticks up to current n
-        t.style.opacity = n <= config.n ? "1" : "0";
-    });
-
+    // Opacity handled by GSAP entrance animation, no continuous update needed
+    
     const xTickLines = axesGroup.querySelectorAll("line.tick-line-x");
-    xTickLines.forEach((line) => {
-        const n = parseFloat(line.dataset.n);
-        line.style.opacity = n <= config.n ? "1" : "0";
-    });
+    // Opacity handled by GSAP entrance animation, no continuous update needed
 
     const points = pointsGroup.querySelectorAll("circle.data-point");
     points.forEach((p) => {
@@ -135,15 +145,13 @@ function updateChartGeometry() {
         const y = yScale(val);
         p.setAttribute("cx", String(x));
         p.setAttribute("cy", String(y));
-        
-        // Show point if n <= config.n
-        if (n <= config.n) {
-            p.setAttribute("r", p.dataset.targetRadius || 10);
-            p.style.opacity = "1";
-        } else {
-            p.setAttribute("r", 0);
-            p.style.opacity = "0";
-        }
+
+        const leadPoint = 0.35;
+        const tpBase = Math.max(0, Math.min(1, (config.n - (n - leadPoint)) / leadPoint));
+        const tp = (config.dataVisible ? tpBase : 0);
+        const targetRadius = parseFloat(p.dataset.targetRadius || "10");
+        p.setAttribute("r", String(targetRadius * tp));
+        p.style.opacity = String(tp);
     });
 
     const labels = labelsGroup.querySelectorAll("text.point-label");
@@ -156,27 +164,38 @@ function updateChartGeometry() {
             
             l.setAttribute("y", String(cy - 40));
             let xOffset = 0;
+            let yOffset = 0;
+
             if (n === 22 || n === 23) xOffset = -12; // 49896, 93150 左移
-            l.setAttribute("x", String(cx + xOffset));
             
-            // Show label if point is visible
-            l.style.opacity = n <= config.n ? "1" : "0";
+            // Staircase offset for n >= 24 (196560+)
+            if (n >= 24) {
+                const stepA = 20;
+                const stepB = 10;
+                if (n <= 28) {
+                    yOffset = -((n - 24) * stepA);
+                } else {
+                    yOffset = -((28 - 24) * stepA) - ((n - 28) * stepB);
+                }
+            }
+
+            l.setAttribute("x", String(cx + xOffset));
+            l.setAttribute("y", String(cy - 40 + yOffset));
+
+            const leadLabel = 0.55;
+            const tlBase = Math.max(0, Math.min(1, (config.n - (n - leadLabel)) / leadLabel));
+            const tl = (config.dataVisible ? tlBase : 0);
+            l.style.opacity = String(tl);
         }
     });
 
     // Axis Lines
-    const xAxisLine = document.querySelector("#x-axis-line");
-    if (xAxisLine) {
-        xAxisLine.setAttribute("y1", String(config.svgHeight - config.margin.bottom));
-        xAxisLine.setAttribute("y2", String(config.svgHeight - config.margin.bottom));
-    }
+    // REMOVED from here to allow GSAP animation to control them
+    // Only update if not animating or handle logic differently if needed
+    // But currently these are static or animated once.
+    // updateChartGeometry is called on every GSAP tick, so setting attributes here
+    // overwrites GSAP's work.
     
-    const yAxisLine = document.querySelector("#y-axis-line");
-    if (yAxisLine) {
-        yAxisLine.setAttribute("y1", String(config.svgHeight - config.margin.bottom));
-        yAxisLine.setAttribute("y2", String(config.margin.top)); 
-    }
-
     // Update Paths
     // We treat all data as one continuous path for simplicity now, or keep segments if needed for coloring
     // User didn't object to segments, so keeping them but updating logic
@@ -219,11 +238,36 @@ function syncSvgLayout() {
         yAxisLine.setAttribute("y1", String(axisBaselineY));
         yAxisLine.setAttribute("x2", String(config.margin.left));
         yAxisLine.setAttribute("y2", String(config.margin.top));
+        // Ensure visibility
+        yAxisLine.style.stroke = "#000";
+        yAxisLine.style.strokeWidth = "2px";
+        yAxisLine.style.display = "block";
     }
 }
 
 function clearGroup(el) {
     while (el && el.firstChild) el.removeChild(el.firstChild);
+}
+
+function ensureAxisLines() {
+    const xAxisLineExisting = svg.querySelector("#x-axis-line");
+    const yAxisLineExisting = svg.querySelector("#y-axis-line");
+
+    if (!xAxisLineExisting) {
+        const xLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        xLine.setAttribute("id", "x-axis-line");
+        xLine.setAttribute("class", "axis x-axis");
+        axesGroup.insertBefore(xLine, axesGroup.firstChild);
+    }
+
+    if (!yAxisLineExisting) {
+        const yLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        yLine.setAttribute("id", "y-axis-line");
+        yLine.setAttribute("class", "axis y-axis");
+        axesGroup.insertBefore(yLine, axesGroup.firstChild);
+    }
+
+    syncSvgLayout();
 }
 
 function ensureSvgDefs() {
@@ -316,7 +360,16 @@ function ensureSvgDefs() {
 function initChart() {
     syncSvgLayout();
     clearGroup(gridGroup);
-    clearGroup(axesGroup);
+    Array.from(axesGroup.childNodes).forEach((node) => {
+        if (node && node.nodeType === 1) {
+            const el = node;
+            const id = el.getAttribute && el.getAttribute("id");
+            if (id !== "x-axis-line" && id !== "y-axis-line") {
+                axesGroup.removeChild(el);
+            }
+        }
+    });
+    ensureAxisLines();
     clearGroup(pointsGroup);
     clearGroup(labelsGroup);
     drawGrid();
@@ -327,12 +380,16 @@ function initChart() {
 
 function drawGrid() {
     // Horizontal Grid lines - Full range coverage for burst animation
+    const yStepsMicro = [0, 100, 200, 300, 400, 500];
+    const yStepsSmall = [1000, 1500, 2000, 2500, 3000, 4000];
+    const yStepsLarge = [5000, 10000, 15000, 20000, 50000, 100000, 150000, 200000, 250000];
     const ySteps = [
-        0, 5000, 10000, 15000, 20000, 
-        50000, 100000, 150000, 200000, 250000
+        ...yStepsMicro.map((v) => ({ val: v, group: "micro" })),
+        ...yStepsSmall.map((v) => ({ val: v, group: "small" })),
+        ...yStepsLarge.map((v) => ({ val: v, group: "large" }))
     ];
-    
-    ySteps.forEach(val => {
+
+    ySteps.forEach(({ val, group }) => {
         const y = yScale(val);
         const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
         line.setAttribute("x1", config.margin.left);
@@ -341,25 +398,27 @@ function drawGrid() {
         line.setAttribute("y2", y);
         line.setAttribute("class", "grid-line grid-line-h non-scaling"); 
         line.dataset.value = val;
+        line.dataset.group = group;
         
         gridGroup.appendChild(line);
 
         // Y-Axis Labels
         if (val > 0) {
             const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            text.setAttribute("x", config.margin.left - 10);
+            text.setAttribute("x", config.margin.left - 80);
             text.setAttribute("y", y + 4);
             text.setAttribute("text-anchor", "end");
             text.setAttribute("class", "tick-text");
             text.dataset.value = val; 
+            text.dataset.group = group;
             text.textContent = val;
             
             axesGroup.appendChild(text);
         }
     });
 
-    // Vertical Grid lines (2 to 31)
-    for (let i = 2; i <= 31; i++) {
+    // Vertical Grid lines (0..31)
+    for (let i = 0; i <= 31; i++) {
         const x = xScale(i);
         const yTop = config.margin.top;
         const yBottom = config.svgHeight - config.margin.bottom;
@@ -380,7 +439,7 @@ function drawGrid() {
 
 function drawAxesTicks() {
     // X-Axis Ticks
-    for (let i = 2; i <= 31; i++) {
+    for (let i = 0; i <= 31; i++) {
         const x = xScale(i);
         const y = config.svgHeight - config.margin.bottom;
         
@@ -396,7 +455,7 @@ function drawAxesTicks() {
 
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
         text.setAttribute("x", x);
-        text.setAttribute("y", y + 20);
+        text.setAttribute("y", y + 50); // Increased distance
         text.setAttribute("class", "tick-text");
         text.dataset.n = i;
         text.textContent = i;
@@ -406,7 +465,7 @@ function drawAxesTicks() {
     // Y-Axis "0"
     // Adjusted position to avoid squeezing
     const zeroText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    zeroText.setAttribute("x", config.margin.left - 25); // Move further left
+    zeroText.setAttribute("x", config.margin.left - 90);
     zeroText.setAttribute("y", yScale(0) + 5);
     zeroText.setAttribute("text-anchor", "end");
     zeroText.setAttribute("class", "tick-text");
@@ -489,7 +548,7 @@ function prepareDataElements() {
         text.setAttribute("class", "point-label");
         text.setAttribute("fill", labelColor);
         text.setAttribute("font-weight", labelWeight);
-        // Use style.fontSize to override CSS priority issues
+        // Force inline font-size to override any CSS specificity issues
         text.style.fontSize = labelSize; 
         text.setAttribute("opacity", 0);
         text.textContent = d.val; // Set correct value immediately
@@ -511,8 +570,11 @@ function startAnimation() {
     window.tl = tl;
 
     // Initial state
-    config.n = 1.9; // Start slightly before 2 so nothing is visible yet
-    config.yMax = 100;
+    config.n = 1.0;
+    config.yMax = 600;
+    config.axesVisible = false;
+    config.dataVisible = false;
+    config.ticksAutoOpacity = false;
     updateChartGeometry();
 
     const xAxisLine = document.querySelector("#x-axis-line");
@@ -522,31 +584,93 @@ function startAnimation() {
     const axisBaselineY = config.svgHeight - config.margin.bottom;
 
     // Reset Axes for entrance animation
+    // Explicitly hide ticks first
+    const xTicks = axesGroup.querySelectorAll("text.tick-text[data-n]");
+    const xTickLines = axesGroup.querySelectorAll("line.tick-line-x");
+    gsap.set([xTicks, xTickLines], { opacity: 0 });
+    
+    // Ensure Y-axis ticks are also hidden initially
+    const yTicks = Array.from(axesGroup.querySelectorAll("text.tick-text[data-value]"));
+    const yGrid = Array.from(gridGroup.querySelectorAll("line.grid-line-h"));
+    gsap.set([yTicks, yGrid], { opacity: 0 });
+
+    const yTicksMicro = yTicks
+        .filter((el) => el.dataset.group === "micro")
+        .sort((a, b) => parseFloat(a.dataset.value) - parseFloat(b.dataset.value));
+    const yGridMicro = yGrid
+        .filter((el) => el.dataset.group === "micro")
+        .sort((a, b) => parseFloat(a.dataset.value) - parseFloat(b.dataset.value));
+
+    const yTicksNonMicro = yTicks.filter((el) => el.dataset.group !== "micro");
+    const yGridNonMicro = yGrid.filter((el) => el.dataset.group !== "micro");
+
     gsap.set(xAxisLine, { attr: { x2: config.margin.left } });
-    gsap.set(yAxisLine, { attr: { y2: axisBaselineY } });
+    // Use fromTo in the timeline to ensure robust start state for Y-axis
 
     // Animation Sequence
-    // 0. Axes Entrance
-    tl.to(xAxisLine, { duration: 0.8, attr: { x2: xAxisX2 }, ease: "power2.out" })
-      .to(yAxisLine, { duration: 0.8, attr: { y2: yAxisY2 }, ease: "power2.out" }, "<0.2");
+    // 0. Axes Entrance (Lines appear first)
+    tl.to(xAxisLine, { duration: 1.5, attr: { x2: xAxisX2 }, ease: "power2.out" })
+      // X Ticks: Appear from left to right, following the line
+      .to([xTickLines, xTicks], { 
+          duration: 0.5, 
+          opacity: 1, 
+          stagger: 0.03, // Staggered appearance
+          ease: "power1.out" 
+      }, "<0.1") // Start shortly after line starts
 
-    // 1. Slow start (n=2 to n=15) - yMax grows slowly to accommodate points
+      // Micro Y ticks (<=500): bottom -> top, together with X ticks
+      .to(yGridMicro, { duration: 0.5, opacity: 1, stagger: 0.06, ease: "power1.out" }, "<")
+      .to(yTicksMicro, { duration: 0.5, opacity: 1, stagger: 0.06, ease: "power1.out" }, "<")
+      
+      .fromTo(yAxisLine, 
+          { attr: { y2: axisBaselineY } }, 
+          { duration: 1.0, attr: { y2: yAxisY2 }, ease: "power2.out" }, 
+          "<"
+      )
+      
+      // Y Ticks: Fade in
+      .to(yGridNonMicro, { duration: 0.5, opacity: 1, stagger: 0.05 }, "<0.2")
+      .to(yTicksNonMicro, { duration: 0.5, opacity: 1, stagger: 0.05 }, "<");
+     
+    // 0.5 Reveal Ticks (X and Y axis ticks fade in) - REMOVED (Handled above)
     tl.to(config, {
-        n: 15,
-        yMax: 5000, // Gradual scaling up to 5000
-        duration: 8, // Slow and steady
+        duration: 0.1,
+        onStart: () => {
+            config.axesVisible = true;
+            config.dataVisible = true;
+        }
+    });
+
+    tl.call(() => {
+        config.ticksAutoOpacity = true;
+    });
+
+    // 1. Slow start (n=2 to n=14) - Stop at 1932 (n=14)
+    // Keep number/point progression unchanged; delay only yMax scaling
+    tl.to(config, {
+        n: 14,
+        duration: 8,
         ease: "linear"
-    }, ">-0.2"); // Start shortly after axes finish
+    });
+    tl.to(config, {
+        yMax: 2500,
+        duration: 8,
+        ease: "linear"
+    }, "<+1.00");
 
     // 2. The Burst (approaching n=16 and beyond)
     // User wants "burst at ~5000". n=16 is 4320.
     // We accelerate n and drastically increase yMax
     tl.to(config, {
         n: 31,
-        yMax: 250000, // Zoom out to fit max value
         duration: 6,
-        ease: "power4.inOut" // Starts slow, speeds up (burst), then settles
+        ease: "power4.inOut"
     });
+    tl.to(config, {
+        yMax: 250000,
+        duration: 6,
+        ease: "power4.inOut"
+    }, "<+0.45");
 }
 
 // Run

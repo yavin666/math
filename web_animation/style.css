@@ -55,7 +55,7 @@ svg {
 .axis-label {
     position: absolute;
     font-family: Arial, sans-serif;
-    font-size: 24px;
+    font-size: 32px;
     color: #444;
     pointer-events: none;
 }
@@ -85,7 +85,7 @@ svg {
 
 .tick-text {
     font-family: "Arial", sans-serif;
-    font-size: 18px; /* Larger ticks */
+    font-size: 24px; /* Larger ticks */
     fill: #444;
     text-anchor: middle;
 }
