@@ -1,0 +1,149 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: "Georgia", serif; /* Google Scholar style */
+    background-color: #ffffff; /* Cleaner white */
+    color: #333;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    width: 96%;
+    max-width: 1600px;
+    height: 95vh;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center; /* Center chart */
+}
+
+/* Title removed in HTML, keeping CSS for reference just in case */
+.chart-title {
+    font-size: 24px;
+    font-family: Arial, sans-serif;
+    color: #1a0dab; /* Google Link Blue style for headers */
+    margin-bottom: 20px;
+}
+
+.chart-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 1400px;
+    height: 80vh; /* Increased height */
+    flex: 1 1 auto;
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+    margin: 0;
+}
+
+svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.axis-label {
+    position: absolute;
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    color: #444;
+}
+
+.axis {
+    stroke: #000;
+    stroke-width: 2; /* Thicker axis */
+}
+
+.grid-line {
+    stroke: #f1f1f1;
+    stroke-width: 1;
+}
+
+.tick-text {
+    font-family: "Arial", sans-serif;
+    font-size: 16px; /* Larger ticks */
+    fill: #444;
+    text-anchor: middle;
+}
+
+.data-line {
+    stroke-width: 3.5px; /* Thicker line */
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    opacity: 1; /* Always visible, controlled by drawing logic */
+}
+
+.data-point {
+    stroke: #fff;
+    stroke-width: 3px;
+    /* Default radius controlled by JS, but we can set base styles */
+}
+
+.point-label {
+    font-family: "Arial", sans-serif;
+    font-size: 18px; /* Larger labels */
+    font-weight: bold;
+    fill: #222;
+    text-anchor: middle;
+    opacity: 0;
+    text-shadow: 
+        -1px -1px 0 #fff,  
+        1px -1px 0 #fff,
+        -1px 1px 0 #fff,
+        1px 1px 0 #fff; /* Stroke effect for readability */
+}
+
+
+.data-point {
+    cursor: pointer;
+    transition: r 0.3s ease;
+}
+
+.data-point:hover {
+    r: 8;
+.point-label {
+    font-family: 'Arial', sans-serif;
+    transform-box: fill-box;
+    transform-origin: center;
+}   font-size: 11px;
+    text-anchor: middle;
+    font-weight: bold;
+    transform-box: fill-box;
+    transform-origin: center;
+    filter: url(#label-bg);
+}
+
+.non-scaling {
+    vector-effect: non-scaling-stroke;
+}
+
+.caption {
+    margin-top: 0; /* Remove margin as we use space-between */
+    font-style: italic;
+    font-size: 16px;
+    color: #444;
+    text-align: center;
+}
+
+@media (max-width: 600px) {
+    .chart-title {
+        font-size: 20px;
+    }
+    .axis-label {
+        font-size: 12px;
+    }
+    .caption {
+        font-size: 14px;
+    }
+}
