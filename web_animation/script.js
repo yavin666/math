@@ -3,7 +3,7 @@ const data = [
     { n: 1, val: 2 },
     { n: 2, val: 6 }, { n: 3, val: 12 }, { n: 4, val: 24 }, { n: 5, val: 40 },
     { n: 6, val: 72 }, { n: 7, val: 126 }, { n: 8, val: 240 }, { n: 9, val: 306 },
-    { n: 10, val: 510 }, { n: 11, val: 593 }, { n: 12, val: 840 }, { n: 13, val: 1154 },
+    { n: 10, val: 500 }, { n: 11, val: 582 }, { n: 12, val: 840 }, { n: 13, val: 1154 },
     { n: 14, val: 1932 }, { n: 15, val: 2564 }, { n: 16, val: 4320 }, { n: 17, val: 5730 },
     { n: 18, val: 7654 }, { n: 19, val: 11692 }, { n: 20, val: 19448 },
     { n: 21, val: 29768 }, { n: 22, val: 49896 }, { n: 23, val: 93150 }, { n: 24, val: 196560 },
@@ -23,7 +23,7 @@ const config = {
     },
     yMax: 100, 
     n: 2, 
-    maxN: 31,
+    maxN: 24,
     cameraEnabled: true,
     dataAlpha: 0
 };
@@ -33,7 +33,7 @@ const width = config.svgWidth - config.margin.left - config.margin.right;
 const height = config.svgHeight - config.margin.top - config.margin.bottom;
 
 // Scales
-const xScale = (n) => config.margin.left + (n / 31) * width;
+const xScale = (n) => config.margin.left + (n / 24) * width;
 
 const segments = {
     green: data.slice(0, 14), // n=2 to n=14 (value 1932)
@@ -157,8 +157,13 @@ function updateChartGeometry() {
     labels.forEach((l) => {
         const n = parseFloat(l.dataset.n);
         const val = parseFloat(l.dataset.val);
-        const cx = xScale(n);
+        let cx = xScale(n);
         const cy = yScale(val);
+
+        // Manual offset for specific points to avoid overlapping with the line
+        if (n === 21 || n === 22 || n === 23) {
+            cx -= 50; // Shift left
+        }
 
         l.setAttribute("x", String(cx));
         let yOffset = 0;
@@ -408,7 +413,7 @@ function drawGrid() {
     });
 
     // Vertical Grid lines (0..31)
-    for (let i = 0; i <= 31; i++) {
+    for (let i = 0; i <= 24; i++) {
         const x = xScale(i);
         const yTop = config.margin.top;
         const yBottom = config.svgHeight - config.margin.bottom;
@@ -427,7 +432,7 @@ function drawGrid() {
 
 function drawAxesTicks() {
     // X-Axis Ticks
-    for (let i = 0; i <= 31; i++) {
+    for (let i = 0; i <= 24; i++) {
         const x = xScale(i);
         const y = config.svgHeight - config.margin.bottom;
         
@@ -502,17 +507,17 @@ function prepareDataElements() {
         const y = yScale(d.val);
         
         let color = config.colors.black;
-        let r = 10;
+        let r = 14;
         let labelColor = config.colors.black;
         let labelWeight = "bold";
-        let labelSize = "32px"; // Increased base size
+        let labelSize = "40px"; // Increased base size
 
         if (d.n === 14) {
             color = config.colors.red;
             labelColor = config.colors.red;
             labelWeight = "bold";
-            labelSize = "28px"; // Increased highlight size
-            r = 12;
+            labelSize = "40px"; // Increased highlight size
+            r = 18;
         }
 
         // Point (reference-style: soft disk + bright core)
@@ -537,7 +542,7 @@ function prepareDataElements() {
         core.classList.add("data-point-core");
         core.setAttribute("cx", "0");
         core.setAttribute("cy", "0");
-        core.setAttribute("r", String(Math.max(2.6, r * 0.18)));
+        core.setAttribute("r", String(Math.max(4, r * 0.3)));
         g.appendChild(core);
 
         pointsGroup.appendChild(g);
@@ -725,18 +730,11 @@ function startAnimation() {
         }, "phase1");
 
         tl.to(camera, {
-            p: 2 / 3,
-            duration: 0.8,
-            ease: "none",
-            onUpdate: applyCamera
-        }, "phase1+=8");
-
-        tl.to(camera, {
             p: 1,
             duration: 2.0,
             ease: "sine.inOut",
             onUpdate: applyCamera
-        }, "phase1+=8.8");
+        }, "phase1+=8");
     }
 
     // 1. Slow start (n=2 to n=14) - Stop at 1932 (n=14)
@@ -750,16 +748,16 @@ function startAnimation() {
         yMax: 2500,
         duration: 8,
         ease: "linear"
-    }, "phase1+=1.00");
+    }, "phase1");
 
     // 2. The Burst (approaching n=16 and beyond)
     // User wants "burst at ~5000". n=16 is 4320.
     // We accelerate n and drastically increase yMax
     tl.to(config, {
-        n: 31,
+        n: 24,
         duration: 6,
         ease: "power4.inOut"
-    });
+    }, "phase1+=8");
     tl.to(config, {
         yMax: 250000,
         duration: 6,

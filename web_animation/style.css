@@ -104,8 +104,8 @@ svg {
 
 .axis-label {
     position: absolute;
-    font-family: Arial, sans-serif;
-    font-size: 24px;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 32px;
     color: var(--text-secondary);
     pointer-events: none;
     transition: color 0.3s;
@@ -137,9 +137,9 @@ svg {
 }
 
 .tick-text {
-    font-family: "Arial", sans-serif;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
     font-size: 24px; /* Larger ticks */
-    fill: var(--text-secondary);
+    fill: var(--text-primary);
     text-anchor: middle;
     transition: fill 0.3s;
 }
@@ -177,7 +177,7 @@ body.dark-mode #path-black-last { stroke-opacity: 0.96; }
 .data-point-halo {
     fill: none;
     stroke: rgba(0, 0, 0, 0.22);
-    stroke-width: 2.2;
+    stroke-width: 5;
 }
 
 .data-point-core {
@@ -224,6 +224,11 @@ body.dark-mode .data-point-core {
 
 .point-label.highlight {
     fill: var(--point-highlight) !important;
+}
+
+.math-term {
+    font-family: "Times New Roman", Times, serif;
+    font-style: italic;
 }
 
 .tick-line-x {
