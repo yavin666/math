@@ -13,7 +13,7 @@ const data = [
 
 // Configuration
 const config = {
-    svgWidth: 3200, 
+    svgWidth: 3000, 
     svgHeight: 1600, 
     margin: { top: 100, right: 120, bottom: 160, left: 180 }, // Increased margins for labels
     colors: {
@@ -25,8 +25,14 @@ const config = {
     n: 2, 
     maxN: 24,
     cameraEnabled: true,
-    dataAlpha: 0
+    dataAlpha: 0,
+    firstValueAlpha: 0,
+    specialGrowthEnabled: false,
+    growthEmphasis: 0,
+    focusDim: 0
 };
+
+const specialGrowth = { v10: 500, v11: 582 };
 
 // Dimensions
 const width = config.svgWidth - config.margin.left - config.margin.right;
@@ -141,22 +147,32 @@ function updateChartGeometry() {
 
     const points = pointsGroup.querySelectorAll("g.data-point");
     points.forEach((p) => {
-        const val = parseFloat(p.dataset.val);
         const n = parseFloat(p.dataset.n);
+        let val = parseFloat(p.dataset.val);
+        if (config.specialGrowthEnabled) {
+            if (n === 10) val = specialGrowth.v10;
+            if (n === 11) val = specialGrowth.v11;
+        }
         const x = xScale(n);
         const y = yScale(val);
 
         const leadPoint = 0.35;
         const tpBase = Math.max(0, Math.min(1, (config.n - (n - leadPoint)) / leadPoint));
         const tp = (config.dataVisible ? tpBase : 0);
-        p.setAttribute("transform", `translate(${x} ${y}) scale(${tp})`);
-        p.style.opacity = String(tp * (config.dataAlpha ?? 1));
+        const firstAlpha = n === 1 ? (config.firstValueAlpha ?? 1) : 1;
+        const emphasis = (config.specialGrowthEnabled && (n === 10 || n === 11)) ? (1 + 0.35 * (config.growthEmphasis ?? 0)) : 1;
+        p.setAttribute("transform", `translate(${x} ${y}) scale(${tp * firstAlpha * emphasis})`);
+        p.style.opacity = String(tp * (config.dataAlpha ?? 1) * firstAlpha);
     });
 
     const labels = labelsGroup.querySelectorAll("text.point-label");
     labels.forEach((l) => {
         const n = parseFloat(l.dataset.n);
-        const val = parseFloat(l.dataset.val);
+        let val = parseFloat(l.dataset.val);
+        if (config.specialGrowthEnabled) {
+            if (n === 10) val = specialGrowth.v10;
+            if (n === 11) val = specialGrowth.v11;
+        }
         let cx = xScale(n);
         const cy = yScale(val);
 
@@ -176,12 +192,26 @@ function updateChartGeometry() {
                 yOffset = -((28 - 24) * stepA) - ((n - 28) * stepB);
             }
         }
-        l.setAttribute("y", String(cy - 40 + yOffset));
+        const labelY = cy - 40 + yOffset;
+        l.setAttribute("y", String(labelY));
 
         const leadLabel = 0.55;
         const tlBase = Math.max(0, Math.min(1, (config.n - (n - leadLabel)) / leadLabel));
         const tl = (config.dataVisible ? tlBase : 0);
-        l.style.opacity = String(tl * (config.dataAlpha ?? 1));
+        const firstAlpha = n === 1 ? (config.firstValueAlpha ?? 1) : 1;
+        let opacity = tl * (config.dataAlpha ?? 1) * firstAlpha;
+        const dim = config.focusDim ?? 0;
+        if (dim > 0 && !(n === 10 || n === 11)) {
+            opacity *= (1 - 0.55 * dim);
+        }
+        l.style.opacity = String(opacity);
+        l.textContent = String(Math.round(val));
+        if (config.specialGrowthEnabled && (n === 10 || n === 11)) {
+            const s = 1 + 0.35 * (config.growthEmphasis ?? 0);
+            l.setAttribute("transform", `translate(${cx} ${labelY}) scale(${s}) translate(${-cx} ${-labelY})`);
+        } else if (l.hasAttribute("transform")) {
+            l.removeAttribute("transform");
+        }
     });
 
     // Axis Lines
@@ -453,17 +483,6 @@ function drawAxesTicks() {
         text.textContent = i;
         axesGroup.appendChild(text);
     }
-    
-    // Y-Axis "0"
-    // Adjusted position to avoid squeezing
-    const zeroText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    zeroText.setAttribute("x", config.margin.left - 90);
-    zeroText.setAttribute("y", yScale(0) + 5);
-    zeroText.setAttribute("text-anchor", "end");
-    zeroText.setAttribute("class", "tick-text");
-    zeroText.dataset.value = 0;
-    zeroText.textContent = "0";
-    axesGroup.appendChild(zeroText);
 }
 
 function prepareDataElements() {
@@ -509,15 +528,15 @@ function prepareDataElements() {
         let color = config.colors.black;
         let r = 14;
         let labelColor = config.colors.black;
-        let labelWeight = "bold";
+        let labelWeight = "normal";
         let labelSize = "40px"; // Increased base size
 
         if (d.n === 14) {
             color = config.colors.red;
             labelColor = config.colors.red;
-            labelWeight = "bold";
+            labelWeight = "normal";
             labelSize = "40px"; // Increased highlight size
-            r = 18;
+            r = 14;
         }
 
         // Point (reference-style: soft disk + bright core)
@@ -585,13 +604,44 @@ function startAnimation() {
         transformOrigin: config.cameraEnabled ? "0% 100%" : "50% 50%"
     });
 
+    const focusState = { active: false, scale: 3.4 };
+    const focusTick = (force = false) => {
+        if (!focusState.active) return;
+        const a = labelsGroup.querySelector('text.point-label[data-n="10"]');
+        const b = labelsGroup.querySelector('text.point-label[data-n="11"]');
+        if (!a || !b) return;
+
+        const ra = a.getBoundingClientRect();
+        const rb = b.getBoundingClientRect();
+        const cx = (ra.left + ra.right + rb.left + rb.right) / 4;
+        const cy = (ra.top + ra.bottom + rb.top + rb.bottom) / 4;
+
+        const targetX = window.innerWidth * 0.52;
+        const targetY = window.innerHeight * 0.48;
+
+        const s = Number(gsap.getProperty(chartWrapper, "scaleX")) || 1;
+        const dx = (targetX - cx) / s;
+        const dy = (targetY - cy) / s;
+
+        const x0 = Number(gsap.getProperty(chartWrapper, "x")) || 0;
+        const y0 = Number(gsap.getProperty(chartWrapper, "y")) || 0;
+        const k = force ? 1 : 0.14;
+        gsap.set(chartWrapper, { x: x0 + dx * k, y: y0 + dy * k });
+    };
+
     // Initial state
     config.n = 1.0;
     config.yMax = 600;
     config.axesVisible = false;
     config.dataVisible = false;
     config.dataAlpha = 0;
+    config.firstValueAlpha = 0;
     config.ticksAutoOpacity = false;
+    config.specialGrowthEnabled = false;
+    config.growthEmphasis = 0;
+    config.focusDim = 0;
+    specialGrowth.v10 = 500;
+    specialGrowth.v11 = 582;
     updateChartGeometry();
 
     const xAxisLine = document.querySelector("#x-axis-line");
@@ -656,6 +706,7 @@ function startAnimation() {
             config.axesVisible = true;
             config.dataVisible = true;
             config.dataAlpha = 0;
+            config.firstValueAlpha = 0;
         }
     });
 
@@ -664,6 +715,12 @@ function startAnimation() {
         duration: 0.6,
         ease: "power1.out"
     }, "<+0.05");
+    
+    tl.to(config, {
+        firstValueAlpha: 1,
+        duration: 0.35,
+        ease: "power1.out"
+    }, "<");
 
     tl.call(() => {
         config.ticksAutoOpacity = true;
@@ -724,29 +781,29 @@ function startAnimation() {
 
         tl.to(camera, {
             p: 2 / 3,
-            duration: 8,
+            duration: 9,
             ease: "sine.inOut",
             onUpdate: applyCamera
-        }, "phase1");
+        }, 0);
 
         tl.to(camera, {
             p: 1,
             duration: 2.0,
             ease: "sine.inOut",
             onUpdate: applyCamera
-        }, "phase1+=8");
+        }, 9);
     }
 
-    // 1. Slow start (n=2 to n=14) - Stop at 1932 (n=14)
+    // 1. Slow start (n=2 to n=14) 
     // Keep number/point progression unchanged; delay only yMax scaling
     tl.to(config, {
         n: 14,
-        duration: 8,
+        duration: 7,
         ease: "linear"
     }, "phase1");
     tl.to(config, {
         yMax: 2500,
-        duration: 8,
+        duration: 7,
         ease: "linear"
     }, "phase1");
 
@@ -757,12 +814,62 @@ function startAnimation() {
         n: 24,
         duration: 6,
         ease: "power4.inOut"
-    }, "phase1+=8");
+    }, "phase1+=7");
     tl.to(config, {
-        yMax: 250000,
+        yMax: 200000,
         duration: 6,
         ease: "power4.inOut"
     }, "<+0.45");
+
+    tl.addLabel("final");
+    tl.call(() => {
+        config.specialGrowthEnabled = true;
+        specialGrowth.v10 = 500;
+        specialGrowth.v11 = 582;
+        config.growthEmphasis = 0;
+        config.focusDim = 0;
+    }, [], "final");
+    
+    tl.to(config, {
+        focusDim: 1,
+        duration: 0.9,
+        ease: "sine.inOut"
+    }, "final");
+
+    if (config.cameraEnabled) {
+        tl.call(() => {
+            if (focusState.active) return;
+            focusState.active = true;
+            gsap.ticker.add(focusTick);
+        }, [], "final");
+
+        tl.to(chartWrapper, {
+            scale: focusState.scale,
+            duration: 1.0,
+            ease: "sine.inOut"
+        }, "final");
+    }
+
+    tl.to(specialGrowth, {
+        v10: 510,
+        v11: 592,
+        duration: 2.4,
+        ease: "none",
+        onComplete: () => {
+            if (!config.cameraEnabled) return;
+            focusTick(true);
+            focusState.active = false;
+            gsap.ticker.remove(focusTick);
+        }
+    }, "final+=1.0");
+
+    tl.to(config, {
+        growthEmphasis: 1,
+        duration: 0.18,
+        ease: "power2.out",
+        yoyo: true,
+        repeat: 1
+    }, "final+=1.0");
 }
 
 // Run
