@@ -17,7 +17,7 @@ body {
 
 .container {
     width: 96%;
-    max-width: 1600px;
+    max-width: 3000px;
     height: 95vh;
     padding: 20px;
     display: flex;
@@ -37,7 +37,7 @@ body {
 .chart-wrapper {
     position: relative;
     width: 100%;
-    max-width: 1400px;
+    max-width: 2200px;
     height: 80vh; /* Increased height */
     flex: 1 1 auto;
     will-change: transform;
@@ -55,8 +55,22 @@ svg {
 .axis-label {
     position: absolute;
     font-family: Arial, sans-serif;
-    font-size: 16px;
+    font-size: 24px;
     color: #444;
+    pointer-events: none;
+}
+
+.x-label {
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+}
+
+.y-label {
+    top: 50%;
+    left: 24px;
+    transform: translateY(-50%) rotate(-90deg);
+    transform-origin: left top;
 }
 
 .axis {
@@ -71,28 +85,30 @@ svg {
 
 .tick-text {
     font-family: "Arial", sans-serif;
-    font-size: 16px; /* Larger ticks */
+    font-size: 18px; /* Larger ticks */
     fill: #444;
     text-anchor: middle;
 }
 
 .data-line {
-    stroke-width: 3.5px; /* Thicker line */
+    stroke-width: 3.5px;
     stroke-linecap: round;
     stroke-linejoin: round;
     fill: none;
-    opacity: 1; /* Always visible, controlled by drawing logic */
+    opacity: 1;
+    vector-effect: non-scaling-stroke; /* Ensure line stays thick even if scaled */
 }
 
 .data-point {
     stroke: #fff;
     stroke-width: 3px;
-    /* Default radius controlled by JS, but we can set base styles */
+    cursor: pointer;
+    transition: r 0.3s ease;
 }
 
 .point-label {
     font-family: "Arial", sans-serif;
-    font-size: 18px; /* Larger labels */
+    /* font-size removed to allow JS override via style attribute */
     font-weight: bold;
     fill: #222;
     text-anchor: middle;
@@ -111,16 +127,16 @@ svg {
 }
 
 .data-point:hover {
-    r: 8;
-.point-label {
+    r: 12;
+}
+
+/* Duplicate .point-label removed/merged */
+.point-label-legacy {
     font-family: 'Arial', sans-serif;
     transform-box: fill-box;
     transform-origin: center;
-}   font-size: 11px;
     text-anchor: middle;
     font-weight: bold;
-    transform-box: fill-box;
-    transform-origin: center;
     filter: url(#label-bg);
 }
 

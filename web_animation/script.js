@@ -12,16 +12,16 @@ const data = [
 
 // Configuration
 const config = {
-    svgWidth: 1200,
-    svgHeight: 1200, // Magnified height
-    margin: { top: 100, right: 50, bottom: 80, left: 80 }, // Increased margins for cleaner look
+    svgWidth: 2800, 
+    svgHeight: 1200, 
+    margin: { top: 100, right: 120, bottom: 120, left: 120 }, // Increased margins for labels
     colors: {
         green: "#2e7d32",
         red: "#d32f2f",
-        black: "#333333" // Softer black
+        black: "#333333" 
     },
-    yMax: 100, // Start zoomed in
-    n: 2, // Current dimension being animated
+    yMax: 100, 
+    n: 2, 
     maxN: 31
 };
 
@@ -93,7 +93,7 @@ function updateChartGeometry() {
         // 2. Hide if clustered at bottom (past values that are now too small relative to scale)
         // Threshold increased to 40px to prevent clutter near 0
         const isTooHigh = y < config.margin.top;
-        const isTooLow = val > 0 && y > (config.svgHeight - config.margin.bottom - 40);
+        const isTooLow = val > 0 && y > (config.svgHeight - config.margin.bottom - 30);
         
         line.style.opacity = (isTooHigh || isTooLow) ? "0" : "1";
     });
@@ -138,7 +138,7 @@ function updateChartGeometry() {
         
         // Show point if n <= config.n
         if (n <= config.n) {
-            p.setAttribute("r", p.dataset.targetRadius || 4);
+            p.setAttribute("r", p.dataset.targetRadius || 10);
             p.style.opacity = "1";
         } else {
             p.setAttribute("r", 0);
@@ -154,10 +154,10 @@ function updateChartGeometry() {
             const cy = parseFloat(point.getAttribute("cy"));
             const cx = parseFloat(point.getAttribute("cx"));
             
-            // Label alignment
-            // Move higher (45px) to avoid overlap
-            l.setAttribute("y", String(cy - 45)); 
-            l.setAttribute("x", String(cx));
+            l.setAttribute("y", String(cy - 40));
+            let xOffset = 0;
+            if (n === 22 || n === 23) xOffset = -12; // 49896, 93150 左移
+            l.setAttribute("x", String(cx + xOffset));
             
             // Show label if point is visible
             l.style.opacity = n <= config.n ? "1" : "0";
@@ -205,7 +205,7 @@ function syncSvgLayout() {
     const xAxisLine = document.querySelector("#x-axis-line");
     const yAxisLine = document.querySelector("#y-axis-line");
     const axisBaselineY = config.svgHeight - config.margin.bottom;
-    const xAxisX2 = config.svgWidth - config.margin.right;
+    const xAxisX2 = config.svgWidth - config.margin.right + 80;
 
     if (xAxisLine) {
         xAxisLine.setAttribute("x1", String(config.margin.left));
@@ -404,9 +404,10 @@ function drawAxesTicks() {
     }
     
     // Y-Axis "0"
+    // Adjusted position to avoid squeezing
     const zeroText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    zeroText.setAttribute("x", config.margin.left - 10);
-    zeroText.setAttribute("y", yScale(0) + 4);
+    zeroText.setAttribute("x", config.margin.left - 25); // Move further left
+    zeroText.setAttribute("y", yScale(0) + 5);
     zeroText.setAttribute("text-anchor", "end");
     zeroText.setAttribute("class", "tick-text");
     zeroText.dataset.value = 0;
@@ -418,10 +419,13 @@ function prepareDataElements() {
     ensureSvgDefs();
 
     // Create Paths
+    // Explicitly adding stroke attributes to ensure visibility if CSS fails
     const greenPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
     greenPath.setAttribute("d", buildPathD(segments.green));
     greenPath.setAttribute("class", "data-line non-scaling");
     greenPath.setAttribute("fill", "none");
+    greenPath.setAttribute("stroke", config.colors.green);
+    greenPath.setAttribute("stroke-width", "3.5");
     greenPath.setAttribute("id", "path-green");
     svg.insertBefore(greenPath, pointsGroup);
 
@@ -429,6 +433,8 @@ function prepareDataElements() {
     blackMainPath.setAttribute("d", buildPathD(segments.blackMain));
     blackMainPath.setAttribute("class", "data-line non-scaling");
     blackMainPath.setAttribute("fill", "none");
+    blackMainPath.setAttribute("stroke", config.colors.black);
+    blackMainPath.setAttribute("stroke-width", "3.5");
     blackMainPath.setAttribute("id", "path-black-main");
     svg.insertBefore(blackMainPath, pointsGroup);
 
@@ -436,6 +442,8 @@ function prepareDataElements() {
     blackLastPath.setAttribute("d", buildPathD(segments.blackLast));
     blackLastPath.setAttribute("class", "data-line non-scaling");
     blackLastPath.setAttribute("fill", "none");
+    blackLastPath.setAttribute("stroke", config.colors.black);
+    blackLastPath.setAttribute("stroke-width", "3.5");
     blackLastPath.setAttribute("id", "path-black-last");
     svg.insertBefore(blackLastPath, pointsGroup);
     
@@ -448,16 +456,17 @@ function prepareDataElements() {
         const y = yScale(d.val);
         
         let color = config.colors.black;
-        let r = 4;
+        let r = 10;
         let labelColor = config.colors.black;
         let labelWeight = "normal";
-        let labelSize = "16px";
+        let labelSize = "28px"; // Increased base size
 
         if (d.n === 14) {
             color = config.colors.red;
             labelColor = config.colors.red;
             labelWeight = "bold";
-            labelSize = "20px";
+            labelSize = "34px"; // Increased highlight size
+            r = 12;
         }
 
         // Point
@@ -480,7 +489,8 @@ function prepareDataElements() {
         text.setAttribute("class", "point-label");
         text.setAttribute("fill", labelColor);
         text.setAttribute("font-weight", labelWeight);
-        text.setAttribute("font-size", labelSize); // Applied size
+        // Use style.fontSize to override CSS priority issues
+        text.style.fontSize = labelSize; 
         text.setAttribute("opacity", 0);
         text.textContent = d.val; // Set correct value immediately
         text.dataset.finalVal = d.val;
@@ -507,7 +517,7 @@ function startAnimation() {
 
     const xAxisLine = document.querySelector("#x-axis-line");
     const yAxisLine = document.querySelector("#y-axis-line");
-    const xAxisX2 = config.svgWidth - config.margin.right;
+    const xAxisX2 = config.svgWidth - config.margin.right + 80;
     const yAxisY2 = config.margin.top;
     const axisBaselineY = config.svgHeight - config.margin.bottom;
 
