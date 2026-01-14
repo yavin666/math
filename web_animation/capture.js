@@ -19,11 +19,9 @@ const path = require('path');
     
     console.log(`Using browser: ${executablePath}`);
 
-    // 2. Setup output directory
-    const outputDir = path.join(__dirname, 'frames');
-    if (!fs.existsSync(outputDir)) {
-        fs.mkdirSync(outputDir);
-    }
+    const ensureDir = (dirPath) => {
+        if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+    };
 
     // 3. Launch
     const browser = await puppeteer.launch({
@@ -34,10 +32,7 @@ const path = require('path');
     
     const page = await browser.newPage();
     
-    // Set viewport to 1920x1080 or the SVG size (1200x1200)
-    // The user wants "chart animation", the SVG is 1200x1200.
-    // Let's set a large viewport to capture high quality.
-    await page.setViewport({ width: 1200, height: 1200, deviceScaleFactor: 2 }); // 2x for retina quality
+    await page.setViewport({ width: 2100, height: 1080, deviceScaleFactor: 1 });
     
     const url = `file://${path.join(__dirname, 'index.html').replace(/\\/g, '/')}`;
     console.log(`Navigating to ${url}`);
@@ -53,51 +48,50 @@ const path = require('path');
         process.exit(1);
     }
 
-    // 5. Inject transparent background style
-    await page.addStyleTag({
-        content: `
-            body, html { background: transparent !important; }
-            .chart-wrapper { background: transparent !important; }
-            #chart { background: transparent !important; }
-        `
-    });
 
-    // 6. Capture Loop
-    const duration = await page.evaluate(() => window.tl.duration());
-    const fps = 30;
-    const totalFrames = Math.ceil(duration * fps);
-    
-    console.log(`Animation duration: ${duration}s, Total frames: ${totalFrames}`);
-    
-    for (let i = 0; i <= totalFrames; i++) {
-        const time = i / fps;
-        
-        await page.evaluate((t) => {
-            window.tl.pause();
-            window.tl.seek(t);
-        }, time);
-        
-        // Wait a bit for rendering (GSAP is sync usually, but DOM might need a tick)
-        // Actually GSAP updates are synchronous if we seek.
-        // But let's verify if we need to wait for images or fonts? 
-        // networkidle0 handled initial load.
-        
-        const filename = `frame_${String(i).padStart(4, '0')}.png`;
-        const filepath = path.join(outputDir, filename);
-        
-        // Capture only the chart wrapper or the full page?
-        // Since we made body transparent, full page is fine, but maybe clip to the SVG.
-        // The SVG is 1200x1200.
-        // Let's capture the full page which is 1200x1200 (viewport).
-        
-        await page.screenshot({
-            path: filepath,
-            omitBackground: true,
-            fullPage: true
-        });
-        
-        if (i % 30 === 0) console.log(`Saved frame ${i}/${totalFrames}`);
-    }
+    const captureVariant = async ({ name, darkMode }) => {
+        const outputDir = path.join(__dirname, name);
+        ensureDir(outputDir);
+
+        await page.evaluate((isDark) => {
+            if (isDark) document.body.classList.add('dark-mode');
+            else document.body.classList.remove('dark-mode');
+        }, darkMode);
+
+        const duration = await page.evaluate(() => window.tl.duration());
+        const fps = 30;
+        const totalFrames = Math.ceil(duration * fps);
+        console.log(`[${name}] Animation duration: ${duration}s, Total frames: ${totalFrames}`);
+
+        for (let i = 0; i <= totalFrames; i++) {
+            const time = i / fps;
+            await page.evaluate(async (t) => {
+                window.tl.pause();
+                window.tl.seek(t, false);
+
+                const onUpdate = window.tl.eventCallback("onUpdate");
+                if (typeof onUpdate === "function") onUpdate();
+
+                await new Promise((resolve) => {
+                    requestAnimationFrame(() => requestAnimationFrame(resolve));
+                });
+            }, time);
+
+            const filename = `frame_${String(i).padStart(4, '0')}.png`;
+            const filepath = path.join(outputDir, filename);
+
+            await page.screenshot({
+                path: filepath,
+                omitBackground: false,
+                fullPage: false
+            });
+
+            if (i % 60 === 0) console.log(`[${name}] Saved frame ${i}/${totalFrames}`);
+        }
+    };
+
+    await captureVariant({ name: 'frames_16x9_dark', darkMode: true });
+    await captureVariant({ name: 'frames_16x9_light', darkMode: false });
     
     console.log("Capture complete.");
     await browser.close();

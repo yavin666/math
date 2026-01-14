@@ -13,7 +13,7 @@ const data = [
 
 // Configuration
 const config = {
-    svgWidth: 2400, 
+    svgWidth: 3200, 
     svgHeight: 1600, 
     margin: { top: 100, right: 120, bottom: 160, left: 180 }, // Increased margins for labels
     colors: {
@@ -24,7 +24,8 @@ const config = {
     yMax: 100, 
     n: 2, 
     maxN: 31,
-    cameraEnabled: true
+    cameraEnabled: true,
+    dataAlpha: 0
 };
 
 // Dimensions
@@ -149,7 +150,7 @@ function updateChartGeometry() {
         const tpBase = Math.max(0, Math.min(1, (config.n - (n - leadPoint)) / leadPoint));
         const tp = (config.dataVisible ? tpBase : 0);
         p.setAttribute("transform", `translate(${x} ${y}) scale(${tp})`);
-        p.style.opacity = String(tp);
+        p.style.opacity = String(tp * (config.dataAlpha ?? 1));
     });
 
     const labels = labelsGroup.querySelectorAll("text.point-label");
@@ -160,12 +161,22 @@ function updateChartGeometry() {
         const cy = yScale(val);
 
         l.setAttribute("x", String(cx));
-        l.setAttribute("y", String(cy - 40));
+        let yOffset = 0;
+        if (n >= 24) {
+            const stepA = 20;
+            const stepB = 10;
+            if (n <= 28) {
+                yOffset = -((n - 24) * stepA);
+            } else {
+                yOffset = -((28 - 24) * stepA) - ((n - 28) * stepB);
+            }
+        }
+        l.setAttribute("y", String(cy - 40 + yOffset));
 
         const leadLabel = 0.55;
         const tlBase = Math.max(0, Math.min(1, (config.n - (n - leadLabel)) / leadLabel));
         const tl = (config.dataVisible ? tlBase : 0);
-        l.style.opacity = String(tl);
+        l.style.opacity = String(tl * (config.dataAlpha ?? 1));
     });
 
     // Axis Lines
@@ -408,8 +419,6 @@ function drawGrid() {
         line.setAttribute("x2", x);
         line.setAttribute("y2", yTop);
         line.setAttribute("class", "grid-line grid-line-v non-scaling");
-        line.setAttribute("stroke", "#eee");
-        line.setAttribute("stroke-width", "1");
         line.dataset.n = i;
         
         gridGroup.appendChild(line);
@@ -427,7 +436,6 @@ function drawAxesTicks() {
         line.setAttribute("y1", y);
         line.setAttribute("x2", x);
         line.setAttribute("y2", y + 6);
-        line.setAttribute("stroke", "#333");
         line.setAttribute("class", "tick-line-x");
         line.dataset.n = i;
         axesGroup.appendChild(line);
@@ -496,14 +504,14 @@ function prepareDataElements() {
         let color = config.colors.black;
         let r = 10;
         let labelColor = config.colors.black;
-        let labelWeight = "normal";
-        let labelSize = "28px"; // Increased base size
+        let labelWeight = "bold";
+        let labelSize = "32px"; // Increased base size
 
         if (d.n === 14) {
             color = config.colors.red;
             labelColor = config.colors.red;
             labelWeight = "bold";
-            labelSize = "34px"; // Increased highlight size
+            labelSize = "28px"; // Increased highlight size
             r = 12;
         }
 
@@ -565,13 +573,19 @@ function startAnimation() {
     window.tl = tl;
 
     const chartWrapper = document.querySelector(".chart-wrapper");
-    gsap.set(chartWrapper, { x: 0, y: 0, scale: 1, transformOrigin: "50% 50%" });
+    gsap.set(chartWrapper, {
+        x: 0,
+        y: 0,
+        scale: 1,
+        transformOrigin: config.cameraEnabled ? "0% 100%" : "50% 50%"
+    });
 
     // Initial state
     config.n = 1.0;
     config.yMax = 600;
     config.axesVisible = false;
     config.dataVisible = false;
+    config.dataAlpha = 0;
     config.ticksAutoOpacity = false;
     updateChartGeometry();
 
@@ -636,8 +650,15 @@ function startAnimation() {
         onStart: () => {
             config.axesVisible = true;
             config.dataVisible = true;
+            config.dataAlpha = 0;
         }
     });
+
+    tl.to(config, {
+        dataAlpha: 1,
+        duration: 0.6,
+        ease: "power1.out"
+    }, "<+0.05");
 
     tl.call(() => {
         config.ticksAutoOpacity = true;
@@ -647,23 +668,75 @@ function startAnimation() {
 
     if (config.cameraEnabled) {
         const rect = chartWrapper.getBoundingClientRect();
-        tl.to(chartWrapper, {
-            duration: 1.05,
-            transformOrigin: "0% 100%",
-            scale: 2.35,
-            x: rect.width * 0.22,
-            y: -rect.height * 0.16,
-            ease: "power2.out"
-        }, "phase1+=0.15");
 
-        tl.to(chartWrapper, {
-            duration: 8.0,
-            transformOrigin: "0% 100%",
-            scale: 1.45,
-            x: -rect.width * 0.10,
-            y: -rect.height * 0.06,
-            ease: "none"
-        }, "phase1+=0.35");
+        const pFull = { x: 0, y: 0, s: 1 };
+        const pClose = { x: rect.width * 0.22, y: -rect.height * 0.16, s: 2.35 };
+        const pMid = { x: -rect.width * 0.10, y: -rect.height * 0.06, s: 1.45 };
+        const pEnd = { x: 0, y: 0, s: 1 };
+
+        const catmullRom = (p0, p1, p2, p3, t) => {
+            const t2 = t * t;
+            const t3 = t2 * t;
+            return 0.5 * (
+                (2 * p1) +
+                (-p0 + p2) * t +
+                (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+                (-p0 + 3 * p1 - 3 * p2 + p3) * t3
+            );
+        };
+
+        const samplePath = (p) => {
+            const segLen = 1 / 3;
+            if (p <= segLen) {
+                const t = p / segLen;
+                return {
+                    x: catmullRom(pFull.x, pFull.x, pClose.x, pMid.x, t),
+                    y: catmullRom(pFull.y, pFull.y, pClose.y, pMid.y, t),
+                    s: catmullRom(pFull.s, pFull.s, pClose.s, pMid.s, t)
+                };
+            }
+            if (p <= 2 * segLen) {
+                const t = (p - segLen) / segLen;
+                return {
+                    x: catmullRom(pFull.x, pClose.x, pMid.x, pEnd.x, t),
+                    y: catmullRom(pFull.y, pClose.y, pMid.y, pEnd.y, t),
+                    s: catmullRom(pFull.s, pClose.s, pMid.s, pEnd.s, t)
+                };
+            }
+            const t = (p - 2 * segLen) / segLen;
+            return {
+                x: catmullRom(pClose.x, pMid.x, pEnd.x, pEnd.x, t),
+                y: catmullRom(pClose.y, pMid.y, pEnd.y, pEnd.y, t),
+                s: catmullRom(pClose.s, pMid.s, pEnd.s, pEnd.s, t)
+            };
+        };
+
+        const camera = { p: 0 };
+        const applyCamera = () => {
+            const v = samplePath(camera.p);
+            gsap.set(chartWrapper, { x: v.x, y: v.y, scale: v.s });
+        };
+
+        tl.to(camera, {
+            p: 2 / 3,
+            duration: 8,
+            ease: "sine.inOut",
+            onUpdate: applyCamera
+        }, "phase1");
+
+        tl.to(camera, {
+            p: 2 / 3,
+            duration: 0.8,
+            ease: "none",
+            onUpdate: applyCamera
+        }, "phase1+=8");
+
+        tl.to(camera, {
+            p: 1,
+            duration: 2.0,
+            ease: "sine.inOut",
+            onUpdate: applyCamera
+        }, "phase1+=8.8");
     }
 
     // 1. Slow start (n=2 to n=14) - Stop at 1932 (n=14)
@@ -678,18 +751,6 @@ function startAnimation() {
         duration: 8,
         ease: "linear"
     }, "phase1+=1.00");
-
-    if (config.cameraEnabled) {
-        tl.to({}, { duration: 0.9 }, "phase1+=8");
-        tl.to(chartWrapper, {
-            duration: 1.35,
-            transformOrigin: "50% 50%",
-            scale: 1,
-            x: 0,
-            y: 0,
-            ease: "power2.inOut"
-        }, "phase1+=8.9");
-    }
 
     // 2. The Burst (approaching n=16 and beyond)
     // User wants "burst at ~5000". n=16 is 4320.
@@ -712,17 +773,28 @@ window.addEventListener('load', () => {
     
     // Toggle Mode
     const toggleBtn = document.getElementById("mode-toggle");
-    toggleBtn.addEventListener("click", () => {
-        document.body.classList.toggle("dark-mode");
+    const syncModeToggleText = () => {
         const isDark = document.body.classList.contains("dark-mode");
         toggleBtn.textContent = isDark ? "Switch to Light Mode" : "Switch to Dark Mode";
+    };
+    syncModeToggleText();
+
+    toggleBtn.addEventListener("click", () => {
+        document.body.classList.toggle("dark-mode");
+        syncModeToggleText();
     });
 
     const cameraBtn = document.getElementById("camera-toggle");
+    cameraBtn.textContent = config.cameraEnabled ? "Camera: On" : "Camera: Off";
     cameraBtn.addEventListener("click", () => {
         config.cameraEnabled = !config.cameraEnabled;
         cameraBtn.textContent = config.cameraEnabled ? "Camera: On" : "Camera: Off";
         if (window.tl) window.tl.kill();
         initChart();
+    });
+
+    document.addEventListener("keydown", (e) => {
+        if (e.key !== "h" && e.key !== "H") return;
+        document.body.classList.toggle("controls-visible");
     });
 });
