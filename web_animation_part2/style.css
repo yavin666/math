@@ -132,6 +132,7 @@ svg {
 .axis {
     stroke: var(--axis-color);
     stroke-width: 2; /* Thicker axis */
+    vector-effect: non-scaling-stroke;
     transition: stroke 0.3s;
 }
 
@@ -139,6 +140,7 @@ svg {
     stroke: var(--grid-color);
     stroke-width: 1;
     opacity: var(--grid-opacity);
+    vector-effect: non-scaling-stroke;
 }
 
 .tick-text {
@@ -179,6 +181,13 @@ body.dark-mode #path-black-last { stroke-opacity: 0.96; }
     opacity: 1;
 }
 
+.data-point-ring {
+    fill: none;
+    stroke: rgba(0, 0, 0, 0.22);
+    stroke-width: 2px;
+    vector-effect: non-scaling-stroke;
+}
+
 .data-point-halo {
     fill: none;
     stroke: rgba(0, 0, 0, 0.22);
@@ -196,17 +205,24 @@ body:not(.dark-mode) .data-point-core {
 }
 
 body.dark-mode .data-point-halo {
-    fill: rgba(255, 255, 255, 0.22);
-    stroke: none;
-    stroke-width: 0;
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.9);
+    stroke-width: 1px;
+    vector-effect: non-scaling-stroke;
+    opacity: 0;
+    transform-origin: center;
 }
 
 body.dark-mode .data-point-core {
     fill: rgba(255, 255, 255, 0.98);
 }
 
+body.dark-mode .data-point-ring {
+    stroke: rgba(255, 255, 255, 0.22);
+}
+
 body.dark-mode .data-point-halo {
-    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.25));
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));
 }
 
 body.dark-mode .data-point-core {
@@ -238,6 +254,7 @@ body.dark-mode .data-point-core {
 
 .tick-line-x {
     stroke: var(--axis-color);
+    vector-effect: non-scaling-stroke;
 }
 
 .mode-toggle {

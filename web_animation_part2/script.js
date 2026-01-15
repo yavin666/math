@@ -21,6 +21,7 @@ const config = {
     cameraEnabled: true,
     dataAlpha: 0,
     firstValueAlpha: 0,
+    point4Flicker: 1,
     specialGrowthEnabled: false,
     growthEmphasis: 0,
     focusDim: 0,
@@ -162,6 +163,7 @@ function updateChartGeometry() {
         const emphasis = (config.specialGrowthEnabled && isGrowthTarget && (n === 10 || n === 11)) ? (1 + 0.35 * (config.growthEmphasis ?? 0)) : 1;
         p.setAttribute("transform", `translate(${x} ${y}) scale(${tp * firstAlpha * emphasis})`);
         let opacity = tp * (config.dataAlpha ?? 1) * firstAlpha;
+        if (n === 4) opacity *= (config.point4Flicker ?? 1);
         const dim = config.focusDim ?? 0;
         const dim10 = config.focusDim10 ?? 0;
         const dim11 = config.focusDim11 ?? 0;
@@ -208,6 +210,7 @@ function updateChartGeometry() {
         const tl = (config.dataVisible ? tlBase : 0);
         const firstAlpha = n === 1 ? (config.firstValueAlpha ?? 1) : 1;
         let opacity = tl * (config.dataAlpha ?? 1) * firstAlpha;
+        if (n === 4) opacity *= (config.point4Flicker ?? 1);
         const dim = config.focusDim ?? 0;
         const dim10 = config.focusDim10 ?? 0;
         const dim11 = config.focusDim11 ?? 0;
@@ -313,6 +316,38 @@ function ensureAxisLines() {
     syncSvgLayout();
 }
 
+function ensureCameraGroup() {
+    const ns = "http://www.w3.org/2000/svg";
+    let cameraGroup = svg.querySelector("#camera-group");
+    if (!cameraGroup) {
+        cameraGroup = document.createElementNS(ns, "g");
+        cameraGroup.setAttribute("id", "camera-group");
+
+        const defs = svg.querySelector("defs");
+        if (defs && defs.nextSibling) svg.insertBefore(cameraGroup, defs.nextSibling);
+        else svg.appendChild(cameraGroup);
+    }
+
+    const moveIntoCamera = (node) => {
+        if (!node) return;
+        if (node.parentNode !== cameraGroup) cameraGroup.appendChild(node);
+    };
+
+    moveIntoCamera(gridGroup);
+    moveIntoCamera(axesGroup);
+    moveIntoCamera(linePath);
+    moveIntoCamera(pointsGroup);
+    moveIntoCamera(labelsGroup);
+
+    ["path-green", "path-black-main", "path-black-last"].forEach((id) => {
+        const p = svg.querySelector(`#${id}`);
+        if (!p) return;
+        if (p.parentNode !== cameraGroup) cameraGroup.insertBefore(p, pointsGroup);
+    });
+
+    return cameraGroup;
+}
+
 function ensureSvgDefs() {
     let defs = svg.querySelector("defs");
     if (!defs) {
@@ -402,6 +437,7 @@ function ensureSvgDefs() {
 // Initialization
 function initChart() {
     syncSvgLayout();
+    ensureCameraGroup();
     clearGroup(gridGroup);
     Array.from(axesGroup.childNodes).forEach((node) => {
         if (node && node.nodeType === 1) {
@@ -423,7 +459,7 @@ function initChart() {
 
 function drawGrid() {
     // Horizontal Grid lines - Full range coverage for burst animation
-    const yStepsMicro = [0, 100, 200, 300, 400, 500];
+    const yStepsMicro = [0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 300, 400, 500];
     const yStepsSmall = [1000, 1500, 2000, 2500, 3000, 4000];
     const yStepsLarge = [5000, 10000, 15000, 20000, 50000, 100000, 150000, 200000, 250000];
     const ySteps = [
@@ -505,6 +541,12 @@ function drawAxesTicks() {
 
 function prepareDataElements() {
     ensureSvgDefs();
+    ensureCameraGroup();
+
+    ["path-green", "path-black-main", "path-black-last"].forEach((id) => {
+        const existing = svg.querySelector(`#${id}`);
+        if (existing) existing.remove();
+    });
 
     // Create Paths
     // Explicitly adding stroke attributes to ensure visibility if CSS fails
@@ -515,7 +557,7 @@ function prepareDataElements() {
     greenPath.setAttribute("stroke", config.colors.green);
     greenPath.setAttribute("stroke-width", "3.5");
     greenPath.setAttribute("id", "path-green");
-    svg.insertBefore(greenPath, pointsGroup);
+    pointsGroup.parentNode.insertBefore(greenPath, pointsGroup);
 
     const blackMainPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
     blackMainPath.setAttribute("d", buildPathD(segments.blackMain));
@@ -524,7 +566,7 @@ function prepareDataElements() {
     blackMainPath.setAttribute("stroke", config.colors.black);
     blackMainPath.setAttribute("stroke-width", "3.5");
     blackMainPath.setAttribute("id", "path-black-main");
-    svg.insertBefore(blackMainPath, pointsGroup);
+    pointsGroup.parentNode.insertBefore(blackMainPath, pointsGroup);
 
     const blackLastPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
     blackLastPath.setAttribute("d", buildPathD(segments.blackLast));
@@ -533,7 +575,7 @@ function prepareDataElements() {
     blackLastPath.setAttribute("stroke", config.colors.black);
     blackLastPath.setAttribute("stroke-width", "3.5");
     blackLastPath.setAttribute("id", "path-black-last");
-    svg.insertBefore(blackLastPath, pointsGroup);
+    pointsGroup.parentNode.insertBefore(blackLastPath, pointsGroup);
     
     // Hide original single path
     linePath.style.display = "none";
@@ -547,13 +589,13 @@ function prepareDataElements() {
         let r = 14;
         let labelColor = config.colors.black;
         let labelWeight = "normal";
-        let labelSize = "36px"; // Increased base size
+        let labelSize = "48px"; // Increased base size
 
         if (d.n === 14) {
             color = config.colors.red;
             labelColor = config.colors.red;
             labelWeight = "normal";
-            labelSize = "36px"; // Increased highlight size
+            labelSize = "48px"; // Increased highlight size
             r = 14;
         }
 
@@ -568,6 +610,13 @@ function prepareDataElements() {
         g.setAttribute("transform", `translate(${x} ${y}) scale(0)`);
         g.style.opacity = "0";
 
+        const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        ring.classList.add("data-point-ring");
+        ring.setAttribute("cx", "0");
+        ring.setAttribute("cy", "0");
+        ring.setAttribute("r", String(r));
+        g.appendChild(ring);
+
         const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         halo.classList.add("data-point-halo");
         halo.setAttribute("cx", "0");
@@ -579,7 +628,7 @@ function prepareDataElements() {
         core.classList.add("data-point-core");
         core.setAttribute("cx", "0");
         core.setAttribute("cy", "0");
-        core.setAttribute("r", String(Math.max(4, r * 0.3)));
+        core.setAttribute("r", String(Math.max(4, r * 0.5)));
         g.appendChild(core);
 
         pointsGroup.appendChild(g);
@@ -608,19 +657,33 @@ function prepareDataElements() {
 }
 
 function startAnimation() {
-    const tl = gsap.timeline({ 
+    const chartWrapper = document.querySelector(".chart-wrapper");
+    const cameraGroup = ensureCameraGroup();
+    gsap.set(chartWrapper, { x: 0, y: 0, scale: 1, transformOrigin: "50% 50%" });
+
+    const camera = { x: 0, y: 0, scale: 1 };
+    let cameraMode = "static";
+    let updateCameraFromConfig = () => {};
+    let lockCamera = () => {
+        cameraMode = "locked";
+    };
+    const applyCamera = () => {
+        cameraGroup.setAttribute(
+            "transform",
+            `matrix(${camera.scale} 0 0 ${camera.scale} ${camera.x} ${camera.y})`
+        );
+    };
+    applyCamera();
+
+    const tl = gsap.timeline({
         defaults: { ease: "none" },
-        onUpdate: updateChartGeometry
+        onUpdate: () => {
+            updateChartGeometry();
+            updateCameraFromConfig();
+            applyCamera();
+        }
     });
     window.tl = tl;
-
-    const chartWrapper = document.querySelector(".chart-wrapper");
-    gsap.set(chartWrapper, {
-        x: 0,
-        y: 0,
-        scale: 1,
-        transformOrigin: config.cameraEnabled ? "0% 100%" : "50% 50%"
-    });
 
     const focusState = { active: false, scale: 3.4 };
     const focusTick = (force = false) => {
@@ -637,24 +700,27 @@ function startAnimation() {
         const targetX = window.innerWidth * 0.52;
         const targetY = window.innerHeight * 0.48;
 
-        const s = Number(gsap.getProperty(chartWrapper, "scaleX")) || 1;
+        const s = camera.scale || 1;
         const dx = (targetX - cx) / s;
         const dy = (targetY - cy) / s;
 
-        const x0 = Number(gsap.getProperty(chartWrapper, "x")) || 0;
-        const y0 = Number(gsap.getProperty(chartWrapper, "y")) || 0;
+        const x0 = camera.x || 0;
+        const y0 = camera.y || 0;
         const k = force ? 1 : 0.14;
-        gsap.set(chartWrapper, { x: x0 + dx * k, y: y0 + dy * k });
+        camera.x = x0 + dx * k;
+        camera.y = y0 + dy * k;
+        applyCamera();
     };
 
     // Initial state
-    config.n = 1.0;
-    config.yMax = 600;
-    config.axesVisible = false;
-    config.dataVisible = false;
-    config.dataAlpha = 0;
-    config.firstValueAlpha = 0;
-    config.ticksAutoOpacity = false;
+    config.n = 4.0;
+    config.yMax = 30; // Close up on 4
+    config.axesVisible = true;
+    config.dataVisible = true;
+    config.dataAlpha = 1;
+    config.firstValueAlpha = 1;
+    config.point4Flicker = 1;
+    config.ticksAutoOpacity = true;
     config.specialGrowthEnabled = false;
     config.growthEmphasis = 0;
     config.focusDim = 0;
@@ -675,12 +741,12 @@ function startAnimation() {
     // Explicitly hide ticks first
     const xTicks = axesGroup.querySelectorAll("text.tick-text[data-n]");
     const xTickLines = axesGroup.querySelectorAll("line.tick-line-x");
-    gsap.set([xTicks, xTickLines], { opacity: 0 });
+    gsap.set([xTicks, xTickLines], { opacity: 1 });
     
     // Ensure Y-axis ticks are also hidden initially
     const yTicks = Array.from(axesGroup.querySelectorAll("text.tick-text[data-value]"));
     const yGrid = Array.from(gridGroup.querySelectorAll("line.grid-line-h"));
-    gsap.set([yTicks, yGrid], { opacity: 0 });
+    gsap.set([yTicks, yGrid], { opacity: 1 });
 
     const yTicksMicro = yTicks
         .filter((el) => el.dataset.group === "micro")
@@ -692,227 +758,239 @@ function startAnimation() {
     const yTicksNonMicro = yTicks.filter((el) => el.dataset.group !== "micro");
     const yGridNonMicro = yGrid.filter((el) => el.dataset.group !== "micro");
 
-    gsap.set(xAxisLine, { attr: { x2: config.margin.left } });
+    gsap.set(xAxisLine, { attr: { x2: xAxisX2 } });
+    gsap.set(yAxisLine, { attr: { y2: yAxisY2 } });
     // Use fromTo in the timeline to ensure robust start state for Y-axis
 
     // Animation Sequence
     // 0. Axes Entrance (Lines appear first)
-    tl.to(xAxisLine, { duration: 1.5, attr: { x2: xAxisX2 }, ease: "power2.out" })
-      // X Ticks: Appear from left to right, following the line
-      .to([xTickLines, xTicks], { 
-          duration: 0.5, 
-          opacity: 1, 
-          stagger: 0.03, // Staggered appearance
-          ease: "power1.out" 
-      }, "<0.1") // Start shortly after line starts
-
-      // Micro Y ticks (<=500): bottom -> top, together with X ticks
-      .to(yGridMicro, { duration: 0.5, opacity: 1, stagger: 0.06, ease: "power1.out" }, "<")
-      .to(yTicksMicro, { duration: 0.5, opacity: 1, stagger: 0.06, ease: "power1.out" }, "<")
-      
-      .fromTo(yAxisLine, 
-          { attr: { y2: axisBaselineY } }, 
-          { duration: 1.0, attr: { y2: yAxisY2 }, ease: "power2.out" }, 
-          "<"
-      )
-      
-      // Y Ticks: Fade in
-      .to(yGridNonMicro, { duration: 0.5, opacity: 1, stagger: 0.05 }, "<0.2")
-      .to(yTicksNonMicro, { duration: 0.5, opacity: 1, stagger: 0.05 }, "<");
+    // REMOVED for Part 2 - Start with axes visible
     
-    tl.addLabel("afterAxes");
+    tl.addLabel("start");
      
     // 0.5 Reveal Ticks (X and Y axis ticks fade in) - REMOVED (Handled above)
-    tl.to(config, {
-        duration: 0.1,
-        onStart: () => {
-            config.axesVisible = true;
-            config.dataVisible = true;
-            config.dataAlpha = 0;
-            config.firstValueAlpha = 0;
-        }
-    });
+    // Removed config fade in logic
 
-    tl.to(config, {
-        dataAlpha: 1,
-        duration: 0.6,
-        ease: "power1.out"
-    }, "<+0.05");
-    
-    tl.to(config, {
-        firstValueAlpha: 1,
-        duration: 0.35,
-        ease: "power1.out"
-    }, "<+2.0");
-
-    tl.call(() => {
-        config.ticksAutoOpacity = true;
-    });
-
-    tl.addLabel("phase1", "afterAxes+=3.0");
+    tl.addLabel("phase1", "start");
 
     if (config.cameraEnabled) {
-        const rect = chartWrapper.getBoundingClientRect();
+        // --- Enhanced Camera Logic ---
+        const axisBaselineY = config.svgHeight - config.margin.bottom;
 
-        const pFull = { x: 0, y: 0, s: 1 };
-        const pClose = { x: rect.width * 0.22, y: -rect.height * 0.16, s: 2.35 };
-        const pMid = { x: -rect.width * 0.10, y: -rect.height * 0.06, s: 1.45 };
-        const pEnd = { x: 0, y: 0, s: 1 };
-
-        const catmullRom = (p0, p1, p2, p3, t) => {
-            const t2 = t * t;
-            const t3 = t2 * t;
-            return 0.5 * (
-                (2 * p1) +
-                (-p0 + p2) * t +
-                (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
-                (-p0 + 3 * p1 - 3 * p2 + p3) * t3
-            );
-        };
-
-        const samplePath = (p) => {
-            const segLen = 1 / 3;
-            if (p <= segLen) {
-                const t = p / segLen;
-                return {
-                    x: catmullRom(pFull.x, pFull.x, pClose.x, pMid.x, t),
-                    y: catmullRom(pFull.y, pFull.y, pClose.y, pMid.y, t),
-                    s: catmullRom(pFull.s, pFull.s, pClose.s, pMid.s, t)
-                };
+        const valAt = (nFloat) => {
+            if (nFloat <= data[0].n) return data[0].val;
+            if (nFloat >= data[data.length - 1].n) return data[data.length - 1].val;
+            for (let i = 0; i < data.length - 1; i++) {
+                const a = data[i];
+                const b = data[i + 1];
+                if (nFloat >= a.n && nFloat <= b.n) {
+                    const t = (nFloat - a.n) / (b.n - a.n);
+                    return a.val + (b.val - a.val) * t;
+                }
             }
-            if (p <= 2 * segLen) {
-                const t = (p - segLen) / segLen;
-                return {
-                    x: catmullRom(pFull.x, pClose.x, pMid.x, pEnd.x, t),
-                    y: catmullRom(pFull.y, pClose.y, pMid.y, pEnd.y, t),
-                    s: catmullRom(pFull.s, pClose.s, pMid.s, pEnd.s, t)
-                };
+            return data[data.length - 1].val;
+        };
+
+        const centerOnXY = (x, y, s, anchorX = 0.5, anchorY = 0.5) => {
+            const cx = config.svgWidth * anchorX;
+            const cy = config.svgHeight * anchorY;
+            return { x: cx - x * s, y: cy - y * s, scale: s };
+        };
+
+        const centerOn = (n, val, s) => centerOnXY(xScale(n), yScale(val), s, 0.5, 0.5);
+
+        const framePointWithXAxis = (n, val) => {
+            const tx = xScale(n);
+            const ty = yScale(val);
+            const dist = Math.abs(axisBaselineY - ty);
+            const pad = config.svgHeight * 0.18;
+            const usable = Math.max(200, config.svgHeight - pad * 2);
+            const s = Math.max(1, Math.min(3.5, usable / (dist + 240)));
+            const targetY = ty * 0.4 + axisBaselineY * 0.6;
+            return centerOnXY(tx, targetY, s, 0.5, 0.62);
+        };
+
+        updateCameraFromConfig = () => {
+            if (cameraMode !== "follow") return;
+            const nNow = config.n;
+            const vNow = valAt(nNow);
+            const next = framePointWithXAxis(nNow, vNow);
+            camera.x = next.x;
+            camera.y = next.y;
+            camera.scale = next.scale;
+        };
+
+        lockCamera = () => {
+            const nNow = config.n;
+            const vNow = valAt(nNow);
+            const next = framePointWithXAxis(nNow, vNow);
+            camera.x = next.x;
+            camera.y = next.y;
+            camera.scale = next.scale;
+            cameraMode = "locked";
+        };
+
+        // 1. Initial State: Focus on n=4
+        const pFocus4 = framePointWithXAxis(4, 24);
+        camera.x = pFocus4.x;
+        camera.y = pFocus4.y;
+        camera.scale = pFocus4.scale;
+        applyCamera();
+
+        // Difficulty Phase: Flicker on n=4
+        tl.to(config, {
+            point4Flicker: 0.25,
+            duration: 0.08,
+            repeat: 20,
+            yoyo: true,
+            ease: "steps(1)"
+        }, "start");
+        tl.set(config, { point4Flicker: 1 }, "breakthrough");
+        
+        tl.addLabel("breakthrough", "start+=2.5");
+        
+        // Helper: Fine white halo pulse
+        const stepPulse = (n) => {
+            const pt = pointsGroup.querySelector(`g.data-point[data-n="${n}"]`);
+            if (pt) {
+                const halo = pt.querySelector('.data-point-halo');
+                if (halo) {
+                    // Reset
+                    gsap.set(halo, { opacity: 0, attr: { r: 14 } });
+                    // Pulse animation
+                    const pulseTl = gsap.timeline();
+                    pulseTl.to(halo, {
+                        opacity: 1,
+                        duration: 0.1,
+                        ease: "power2.out"
+                    })
+                    .to(halo, {
+                        attr: { r: 60 }, // Expand radius significantly
+                        opacity: 0,
+                        duration: 0.9,
+                        ease: "sine.out"
+                    });
+                }
             }
-            const t = (p - 2 * segLen) / segLen;
-            return {
-                x: catmullRom(pClose.x, pMid.x, pEnd.x, pEnd.x, t),
-                y: catmullRom(pClose.y, pMid.y, pEnd.y, pEnd.y, t),
-                s: catmullRom(pClose.s, pMid.s, pEnd.s, pEnd.s, t)
-            };
         };
 
-        const camera = { p: 0 };
-        const applyCamera = () => {
-            const v = samplePath(camera.p);
-            gsap.set(chartWrapper, { x: v.x, y: v.y, scale: v.s });
-        };
+        tl.call(() => {
+            cameraMode = "follow";
+        }, [], "breakthrough+=0.5");
 
-        tl.call(applyCamera, [], "afterAxes");
+        // 2. Breakthrough at 4
+        tl.call(() => stepPulse(4), [], "breakthrough");
+        
+        // 3. Step by step growth
+        const stepDur = 2.0;
 
-        tl.to(camera, {
-            p: 2 / 3,
-            duration: 9,
-            ease: "sine.inOut",
-            onUpdate: applyCamera
-        }, "afterAxes");
+        // n=4 to 5
+        tl.to(config, { n: 5, yMax: 50, duration: stepDur, ease: "linear" }, "breakthrough+=0.5");
+        tl.call(() => stepPulse(5), [], ">-0.1"); // Trigger pulse just before end of move
 
-        tl.to(camera, {
-            p: 1,
-            duration: 2.0,
-            ease: "sine.inOut",
-            onUpdate: applyCamera
-        }, "afterAxes+=9");
+        // n=5 to 6
+        tl.to(config, { n: 6, yMax: 90, duration: stepDur, ease: "linear" }, ">");
+        tl.call(() => stepPulse(6), [], ">-0.1");
+
+        // n=6 to 7
+        tl.to(config, { n: 7, yMax: 160, duration: stepDur, ease: "linear" }, ">");
+        tl.call(() => stepPulse(7), [], ">-0.1");
+
+        // n=7 to 8
+        tl.to(config, { n: 8, yMax: 300, duration: stepDur, ease: "linear" }, ">");
+        tl.call(() => stepPulse(8), [], ">-0.1");
+        tl.call(() => {
+            lockCamera();
+        }, [], ">");
+
+    } else {
+        // Fallback
+        tl.to(config, { n: 8, yMax: 300, duration: 8, ease: "linear" }, "breakthrough");
     }
 
-    // 1. Slow start (n=2 to n=8) 
-    tl.to(config, {
-        n: 8,
-        duration: 12, // Slower growth for detail
-        ease: "linear"
-    }, "phase1");
-    tl.to(config, {
-        yMax: 300, // Adjusted for n=8 (value 240)
-        duration: 12,
-        ease: "linear"
-    }, "phase1");
-
-    // No burst phase for Part 2
-    tl.addLabel("final");
-    tl.call(() => {
-        config.specialGrowthEnabled = true;
-        specialGrowth.v10 = 500;
-        specialGrowth.v11 = 582;
-        config.growthEmphasis = 0;
-        config.focusDim = 0;
-        config.focusDim10 = 0;
-        config.focusDim11 = 0;
-        config.growthTargetN = 10;
-    }, [], "final");
-    
-    tl.to(config, {
-        focusDim: 1,
-        duration: 0.9,
-        ease: "sine.inOut"
-    }, "final");
-
-    tl.to(config, {
-        focusDim11: 1,
-        duration: 0.9,
-        ease: "sine.inOut"
-    }, "final");
-
-    if (config.cameraEnabled) {
+    if (config.maxN > 8) {
+        tl.addLabel("final");
         tl.call(() => {
-            if (focusState.active) return;
-            focusState.active = true;
-            gsap.ticker.add(focusTick);
+            config.specialGrowthEnabled = true;
+            specialGrowth.v10 = 500;
+            specialGrowth.v11 = 582;
+            config.growthEmphasis = 0;
+            config.focusDim = 0;
+            config.focusDim10 = 0;
+            config.focusDim11 = 0;
+            config.growthTargetN = 10;
         }, [], "final");
-
-        tl.to(chartWrapper, {
-            scale: focusState.scale,
-            duration: 1.0,
+        
+        tl.to(config, {
+            focusDim: 1,
+            duration: 0.9,
             ease: "sine.inOut"
         }, "final");
+
+        tl.to(config, {
+            focusDim11: 1,
+            duration: 0.9,
+            ease: "sine.inOut"
+        }, "final");
+
+        if (config.cameraEnabled) {
+            tl.call(() => {
+                if (focusState.active) return;
+                focusState.active = true;
+                gsap.ticker.add(focusTick);
+            }, [], "final");
+
+            tl.to(camera, {
+                scale: focusState.scale,
+                duration: 1.0,
+                ease: "sine.inOut"
+            }, "final");
+        }
+
+        tl.to(specialGrowth, {
+            v10: 510,
+            duration: 1.25,
+            ease: "sine.inOut"
+        }, "final+=1.0");
+
+        tl.to(config, {
+            growthEmphasis: 1,
+            duration: 0.18,
+            ease: "power2.out",
+            yoyo: true,
+            repeat: 1
+        }, "final+=1.0");
+
+        tl.to(config, {
+            focusDim10: 1,
+            focusDim11: 0,
+            duration: 0.45,
+            ease: "sine.inOut",
+            onStart: () => {
+                config.growthTargetN = 11;
+            }
+        }, "final+=2.25");
+
+        tl.to(specialGrowth, {
+            v11: 592,
+            duration: 1.25,
+            ease: "sine.inOut",
+            onComplete: () => {
+                if (!config.cameraEnabled) return;
+                focusTick(true);
+                focusState.active = false;
+                gsap.ticker.remove(focusTick);
+            }
+        }, "final+=2.25");
+
+        tl.to(config, {
+            growthEmphasis: 1,
+            duration: 0.18,
+            ease: "power2.out",
+            yoyo: true,
+            repeat: 1
+        }, "final+=2.25");
     }
-
-    tl.to(specialGrowth, {
-        v10: 510,
-        duration: 1.25,
-        ease: "sine.inOut"
-    }, "final+=1.0");
-
-    tl.to(config, {
-        growthEmphasis: 1,
-        duration: 0.18,
-        ease: "power2.out",
-        yoyo: true,
-        repeat: 1
-    }, "final+=1.0");
-
-    tl.to(config, {
-        focusDim10: 1,
-        focusDim11: 0,
-        duration: 0.45,
-        ease: "sine.inOut",
-        onStart: () => {
-            config.growthTargetN = 11;
-        }
-    }, "final+=2.25");
-
-    tl.to(specialGrowth, {
-        v11: 592,
-        duration: 1.25,
-        ease: "sine.inOut",
-        onComplete: () => {
-            if (!config.cameraEnabled) return;
-            focusTick(true);
-            focusState.active = false;
-            gsap.ticker.remove(focusTick);
-        }
-    }, "final+=2.25");
-
-    tl.to(config, {
-        growthEmphasis: 1,
-        duration: 0.18,
-        ease: "power2.out",
-        yoyo: true,
-        repeat: 1
-    }, "final+=2.25");
 }
 
 // Run
