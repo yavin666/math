@@ -45,8 +45,8 @@ const height = config.svgHeight - config.margin.top - config.margin.bottom;
 const xScale = (n) => config.margin.left + (n / 24) * width;
 
 const segments = {
-    green: data.slice(0, 14), // n=2 to n=14 (value 1932)
-    blackMain: data.slice(13, 18), // Overlap at n=14 to continue smoothly
+    green: data.slice(0, 7), // n=2 to n=7 (value 126)
+    blackMain: data.slice(6, 18), // Overlap at n=7 to continue smoothly
     blackLast: data.slice(17, data.length) // Include all remaining points
 };
 
@@ -595,7 +595,7 @@ function prepareDataElements() {
         text.setAttribute("x", x);
         text.setAttribute("y", y - 28);
         text.classList.add("point-label");
-        if (d.n === 14) text.classList.add("highlight");
+        if (d.n === 7) text.classList.add("highlight");
         
         // text.setAttribute("fill", labelColor); // Handled by CSS
         text.setAttribute("font-weight", labelWeight);
@@ -825,15 +825,15 @@ function startAnimation() {
         }, "afterAxes+=9");
     }
 
-    // 1. Slow start (n=2 to n=14) 
+    // 1. Slow start (n=2 to n=7) 
     // Keep number/point progression unchanged; delay only yMax scaling
     tl.to(config, {
-        n: 14,
+        n: 7,
         duration: 7,
         ease: "linear"
     }, "phase1");
     tl.to(config, {
-        yMax: 2500,
+        yMax: 200, // Adjusted for n=7 (value 126)
         duration: 7,
         ease: "linear"
     }, "phase1");

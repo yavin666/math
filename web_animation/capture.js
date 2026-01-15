@@ -59,7 +59,7 @@ const path = require('path');
         }, darkMode);
 
         const duration = await page.evaluate(() => window.tl.duration());
-        const fps = 30;
+        const fps = 120;
         const totalFrames = Math.ceil(duration * fps);
         console.log(`[${name}] Animation duration: ${duration}s, Total frames: ${totalFrames}`);
 
