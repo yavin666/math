@@ -5,6 +5,9 @@ web_animation/npm-cache/
 web_animation/frames/
 web_animation/frames_16x9_dark/
 web_animation/frames_16x9_light/
+web_animation_part2/frames/
+web_animation_part2/frames_16x9_dark/
+web_animation_part2/frames_16x9_light/
 
 npm-debug.log
 yarn-error.log

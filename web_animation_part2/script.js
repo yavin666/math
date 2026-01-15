@@ -2,7 +2,7 @@
 const data = [
     { n: 1, val: 2 },
     { n: 2, val: 6 }, { n: 3, val: 12 }, { n: 4, val: 24 }, { n: 5, val: 40 },
-    { n: 6, val: 72 }, { n: 7, val: 126 }, { n: 8, val: 240 }
+    { n: 6, val: 72 }, { n: 7, val: 126 }, { n: 8, val: 240 }, { n: 9, val: 306 }
 ];
 
 // Configuration
@@ -17,17 +17,19 @@ const config = {
     },
     yMax: 100, 
     n: 2, 
-    maxN: 8,
+    maxN: 24,
     cameraEnabled: true,
     dataAlpha: 0,
     firstValueAlpha: 0,
     point4Flicker: 1,
+    point9Flicker: 1,
     specialGrowthEnabled: false,
     growthEmphasis: 0,
     focusDim: 0,
     focusDim10: 0,
     focusDim11: 0,
-    growthTargetN: null
+    growthTargetN: null,
+    enableFinalPhase: false
 };
 
 const specialGrowth = { v10: 500, v11: 582 };
@@ -37,10 +39,10 @@ const width = config.svgWidth - config.margin.left - config.margin.right;
 const height = config.svgHeight - config.margin.top - config.margin.bottom;
 
 // Scales
-const xScale = (n) => config.margin.left + (n / 8) * width;
+const xScale = (n) => config.margin.left + (n / 24) * width;
 
 const segments = {
-    green: data.slice(0, 8), // n=1 to n=8
+    green: data.slice(0, 9), // n=1 to n=9
     blackMain: [], // Not used in part 2
     blackLast: [] // Not used in part 2
 };
@@ -143,6 +145,23 @@ function updateChartGeometry() {
     const xTickLines = axesGroup.querySelectorAll("line.tick-line-x");
     // Opacity handled by GSAP entrance animation, no continuous update needed
 
+    // Update X-Axis ticks visibility based on camera/config.n
+    xTicks.forEach(t => {
+        const n = parseFloat(t.dataset.n);
+        if (n > 9) {
+            // Show if we have reached this n
+            const opacity = config.n >= n - 1 ? 1 : 0; // Fade in slightly before
+            t.style.opacity = String(opacity);
+        }
+    });
+    xTickLines.forEach(l => {
+        const n = parseFloat(l.dataset.n);
+        if (n > 9) {
+            const opacity = config.n >= n - 1 ? 1 : 0;
+            l.style.opacity = String(opacity);
+        }
+    });
+
     const points = pointsGroup.querySelectorAll("g.data-point");
     points.forEach((p) => {
         const n = parseFloat(p.dataset.n);
@@ -164,6 +183,7 @@ function updateChartGeometry() {
         p.setAttribute("transform", `translate(${x} ${y}) scale(${tp * firstAlpha * emphasis})`);
         let opacity = tp * (config.dataAlpha ?? 1) * firstAlpha;
         if (n === 4) opacity *= (config.point4Flicker ?? 1);
+        if (n === 9) opacity *= (config.point9Flicker ?? 1);
         const dim = config.focusDim ?? 0;
         const dim10 = config.focusDim10 ?? 0;
         const dim11 = config.focusDim11 ?? 0;
@@ -211,6 +231,7 @@ function updateChartGeometry() {
         const firstAlpha = n === 1 ? (config.firstValueAlpha ?? 1) : 1;
         let opacity = tl * (config.dataAlpha ?? 1) * firstAlpha;
         if (n === 4) opacity *= (config.point4Flicker ?? 1);
+        if (n === 9) opacity *= (config.point9Flicker ?? 1);
         const dim = config.focusDim ?? 0;
         const dim10 = config.focusDim10 ?? 0;
         const dim11 = config.focusDim11 ?? 0;
@@ -275,7 +296,8 @@ function syncSvgLayout() {
     if (xAxisLine) {
         xAxisLine.setAttribute("x1", String(config.margin.left));
         xAxisLine.setAttribute("y1", String(axisBaselineY));
-        xAxisLine.setAttribute("x2", String(xAxisX2));
+        const currentX2 = Math.max(xScale(config.n) + 80, xAxisX2);
+        xAxisLine.setAttribute("x2", String(currentX2));
         xAxisLine.setAttribute("y2", String(axisBaselineY));
     }
 
@@ -496,8 +518,8 @@ function drawGrid() {
         }
     });
 
-    // Vertical Grid lines (0..8)
-    for (let i = 0; i <= 8; i++) {
+    // Vertical Grid lines (0..24)
+    for (let i = 0; i <= 24; i++) {
         const x = xScale(i);
         const yTop = config.margin.top;
         const yBottom = config.svgHeight - config.margin.bottom;
@@ -516,7 +538,7 @@ function drawGrid() {
 
 function drawAxesTicks() {
     // X-Axis Ticks
-    for (let i = 0; i <= 8; i++) {
+    for (let i = 0; i <= 24; i++) {
         const x = xScale(i);
         const y = config.svgHeight - config.margin.bottom;
         
@@ -720,6 +742,7 @@ function startAnimation() {
     config.dataAlpha = 1;
     config.firstValueAlpha = 1;
     config.point4Flicker = 1;
+    config.point9Flicker = 1;
     config.ticksAutoOpacity = true;
     config.specialGrowthEnabled = false;
     config.growthEmphasis = 0;
@@ -899,6 +922,27 @@ function startAnimation() {
         // n=7 to 8
         tl.to(config, { n: 8, yMax: 300, duration: stepDur, ease: "linear" }, ">");
         tl.call(() => stepPulse(8), [], ">-0.1");
+        tl.to({}, { duration: 1.0 }, ">");
+
+        // n=8 to 9 (new stall)
+        const stepDur2 = 1.8;
+        tl.to(config, { n: 9, yMax: 340, duration: stepDur2, ease: "linear" }, ">");
+        tl.call(() => stepPulse(9), [], ">-0.1");
+        tl.to(config, {
+            point9Flicker: 0.25,
+            duration: 0.1,
+            repeat: 80,
+            yoyo: true,
+            ease: "steps(1)"
+        }, ">");
+
+        // Camera moves right (n goes to 24) while flickering
+        tl.to(config, {
+            n: 24,
+            duration: 12.0,
+            ease: "linear"
+        }, "<");
+
         tl.call(() => {
             lockCamera();
         }, [], ">");
@@ -908,7 +952,7 @@ function startAnimation() {
         tl.to(config, { n: 8, yMax: 300, duration: 8, ease: "linear" }, "breakthrough");
     }
 
-    if (config.maxN > 8) {
+    if (config.enableFinalPhase) {
         tl.addLabel("final");
         tl.call(() => {
             config.specialGrowthEnabled = true;
