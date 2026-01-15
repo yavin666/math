@@ -39,7 +39,39 @@ const width = config.svgWidth - config.margin.left - config.margin.right;
 const height = config.svgHeight - config.margin.top - config.margin.bottom;
 
 // Scales
-const xScale = (n) => config.margin.left + (n / 24) * width;
+const xScale = (n) => {
+    const denom = Math.max(getXAxisExtentN(), 1);
+    return config.margin.left + (n / denom) * width;
+};
+
+/**
+ * 获取X轴当前应显示到的维度终点（初始为4，随后随摄像机右移对应的n增长）。
+ */
+function getXAxisExtentN() {
+    const base = 4;
+    const max = config.maxN ?? 24;
+    const nNow = Number.isFinite(config.n) ? config.n : 0;
+    return Math.max(base, Math.min(max, nNow));
+}
+
+/**
+ * 按当前X轴维度终点更新X轴线段长度。
+ */
+function updateXAxisLine() {
+    const xAxisLine = svg.querySelector("#x-axis-line");
+    if (!xAxisLine) return;
+    if (typeof gsap !== "undefined" && gsap.isTweening && gsap.isTweening(xAxisLine)) return;
+
+    const axisBaselineY = config.svgHeight - config.margin.bottom;
+    const extentN = getXAxisExtentN();
+    const axisPad = 80;
+    const x2 = xScale(extentN) + axisPad;
+
+    xAxisLine.setAttribute("x1", String(config.margin.left));
+    xAxisLine.setAttribute("y1", String(axisBaselineY));
+    xAxisLine.setAttribute("x2", String(x2));
+    xAxisLine.setAttribute("y2", String(axisBaselineY));
+}
 
 const segments = {
     green: data.slice(0, 9), // n=1 to n=9
@@ -145,21 +177,21 @@ function updateChartGeometry() {
     const xTickLines = axesGroup.querySelectorAll("line.tick-line-x");
     // Opacity handled by GSAP entrance animation, no continuous update needed
 
-    // Update X-Axis ticks visibility based on camera/config.n
-    xTicks.forEach(t => {
+    const xAxisExtentN = getXAxisExtentN();
+    xTicks.forEach((t) => {
         const n = parseFloat(t.dataset.n);
-        if (n > 9) {
-            // Show if we have reached this n
-            const opacity = config.n >= n - 1 ? 1 : 0; // Fade in slightly before
-            t.style.opacity = String(opacity);
-        }
+        const x = xScale(n);
+        t.setAttribute("x", String(x));
+        const opacity = n <= xAxisExtentN + 1e-6 ? 1 : 0;
+        t.style.opacity = String(opacity);
     });
-    xTickLines.forEach(l => {
+    xTickLines.forEach((l) => {
         const n = parseFloat(l.dataset.n);
-        if (n > 9) {
-            const opacity = config.n >= n - 1 ? 1 : 0;
-            l.style.opacity = String(opacity);
-        }
+        const x = xScale(n);
+        l.setAttribute("x1", String(x));
+        l.setAttribute("x2", String(x));
+        const opacity = n <= xAxisExtentN + 1e-6 ? 1 : 0;
+        l.style.opacity = String(opacity);
     });
 
     const points = pointsGroup.querySelectorAll("g.data-point");
@@ -256,12 +288,7 @@ function updateChartGeometry() {
         }
     });
 
-    // Axis Lines
-    // REMOVED from here to allow GSAP animation to control them
-    // Only update if not animating or handle logic differently if needed
-    // But currently these are static or animated once.
-    // updateChartGeometry is called on every GSAP tick, so setting attributes here
-    // overwrites GSAP's work.
+    updateXAxisLine();
     
     // Update Paths
     // We treat all data as one continuous path for simplicity now, or keep segments if needed for coloring
@@ -291,13 +318,12 @@ function syncSvgLayout() {
     const xAxisLine = document.querySelector("#x-axis-line");
     const yAxisLine = document.querySelector("#y-axis-line");
     const axisBaselineY = config.svgHeight - config.margin.bottom;
-    const xAxisX2 = config.svgWidth - config.margin.right + 80;
 
     if (xAxisLine) {
         xAxisLine.setAttribute("x1", String(config.margin.left));
         xAxisLine.setAttribute("y1", String(axisBaselineY));
-        const currentX2 = Math.max(xScale(config.n) + 80, xAxisX2);
-        xAxisLine.setAttribute("x2", String(currentX2));
+        const axisPad = 80;
+        xAxisLine.setAttribute("x2", String(xScale(getXAxisExtentN()) + axisPad));
         xAxisLine.setAttribute("y2", String(axisBaselineY));
     }
 
@@ -481,7 +507,7 @@ function initChart() {
 
 function drawGrid() {
     // Horizontal Grid lines - Full range coverage for burst animation
-    const yStepsMicro = [0, 20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240, 300, 400, 500];
+    const yStepsMicro = [0, 50 , 100,150,200,250,300,350,400,450, 500];
     const yStepsSmall = [1000, 1500, 2000, 2500, 3000, 4000];
     const yStepsLarge = [5000, 10000, 15000, 20000, 50000, 100000, 150000, 200000, 250000];
     const ySteps = [
@@ -756,7 +782,6 @@ function startAnimation() {
 
     const xAxisLine = document.querySelector("#x-axis-line");
     const yAxisLine = document.querySelector("#y-axis-line");
-    const xAxisX2 = config.svgWidth - config.margin.right + 80;
     const yAxisY2 = config.margin.top;
     const axisBaselineY = config.svgHeight - config.margin.bottom;
 
@@ -781,7 +806,7 @@ function startAnimation() {
     const yTicksNonMicro = yTicks.filter((el) => el.dataset.group !== "micro");
     const yGridNonMicro = yGrid.filter((el) => el.dataset.group !== "micro");
 
-    gsap.set(xAxisLine, { attr: { x2: xAxisX2 } });
+    updateXAxisLine();
     gsap.set(yAxisLine, { attr: { y2: yAxisY2 } });
     // Use fromTo in the timeline to ensure robust start state for Y-axis
 
@@ -799,6 +824,16 @@ function startAnimation() {
     if (config.cameraEnabled) {
         // --- Enhanced Camera Logic ---
         const axisBaselineY = config.svgHeight - config.margin.bottom;
+
+        /**
+         * 根据当前X轴显示终点给镜头一个水平锚点，保证初始阶段能看到坐标轴。
+         */
+        function getCameraAnchorX() {
+            const base = 4;
+            const extent = getXAxisExtentN();
+            const t = Math.max(0, Math.min(1, (extent - base) / 6));
+            return 0.94 + (0.5 - 0.94) * t;
+        }
 
         const valAt = (nFloat) => {
             if (nFloat <= data[0].n) return data[0].val;
@@ -830,7 +865,7 @@ function startAnimation() {
             const usable = Math.max(200, config.svgHeight - pad * 2);
             const s = Math.max(1, Math.min(3.5, usable / (dist + 240)));
             const targetY = ty * 0.4 + axisBaselineY * 0.6;
-            return centerOnXY(tx, targetY, s, 0.5, 0.62);
+            return centerOnXY(tx, targetY, s, getCameraAnchorX(), 0.62);
         };
 
         updateCameraFromConfig = () => {
@@ -922,7 +957,7 @@ function startAnimation() {
         // n=7 to 8
         tl.to(config, { n: 8, yMax: 300, duration: stepDur, ease: "linear" }, ">");
         tl.call(() => stepPulse(8), [], ">-0.1");
-        tl.to({}, { duration: 1.0 }, ">");
+        tl.to({}, { duration: 2.4 }, ">");
 
         // n=8 to 9 (new stall)
         const stepDur2 = 1.8;
@@ -936,12 +971,14 @@ function startAnimation() {
             ease: "steps(1)"
         }, ">");
 
+        tl.to({}, { duration: 2.8 }, "<");
+
         // Camera moves right (n goes to 24) while flickering
         tl.to(config, {
             n: 24,
             duration: 12.0,
             ease: "linear"
-        }, "<");
+        }, ">");
 
         tl.call(() => {
             lockCamera();
