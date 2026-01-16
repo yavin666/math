@@ -37,7 +37,8 @@ const config = {
     focusDim10: 0,
     focusDim11: 0,
     growthTargetN: null,
-    enableFinalPhase: false
+    enableFinalPhase: false,
+    minAxisN: 0 // New config for manual axis expansion
 };
 
 const specialGrowth = { v10: 500, v11: 582 };
@@ -48,8 +49,20 @@ const height = config.svgHeight - config.margin.top - config.margin.bottom;
 
 // Scales
 const xScale = (n) => {
-    const denom = Math.max(getXAxisExtentN(), 1);
-    return config.margin.left + (n / denom) * width;
+    const extent = getXAxisExtentN();
+    // Non-linear scaling: Compress 0-24, Expand 24-31
+    const splitN = 24;
+    const expansionFactor = 3.5; // Give significantly more space to >24
+
+    const mapN = (v) => {
+        if (v <= splitN) return v;
+        return splitN + (v - splitN) * expansionFactor;
+    };
+
+    const mappedN = mapN(n);
+    const mappedExtent = Math.max(mapN(extent), 1); // Avoid div by zero
+
+    return config.margin.left + (mappedN / mappedExtent) * width;
 };
 
 /**
@@ -59,7 +72,8 @@ function getXAxisExtentN() {
     const base = 4;
     const max = config.maxN ?? 24;
     const nNow = Number.isFinite(config.n) ? config.n : 0;
-    return Math.max(base, Math.min(max, nNow));
+    const minN = config.minAxisN ?? 0;
+    return Math.max(base, Math.min(max, nNow), minN);
 }
 
 /**
@@ -95,6 +109,24 @@ const yScale = (val) => {
     // Ensure yMax doesn't go below a minimum to prevent division by zero or extreme zoom
     const effectiveYMax = Math.max(config.yMax, 10);
     return baseline - (val / effectiveYMax) * h;
+};
+
+const createStarPath = (r) => {
+    let path = "";
+    for (let i = 0; i < 5; i++) {
+        const theta = (Math.PI * 2 * i) / 5 - Math.PI / 2;
+        const x = Math.cos(theta) * r;
+        const y = Math.sin(theta) * r;
+        path += (i === 0 ? "M" : "L") + ` ${x} ${y}`;
+        
+        const thetaInner = theta + Math.PI / 5;
+        const rInner = r * 0.4;
+        const xInner = Math.cos(thetaInner) * rInner;
+        const yInner = Math.sin(thetaInner) * rInner;
+        path += ` L ${xInner} ${yInner}`;
+    }
+    path += "Z";
+    return path;
 };
 
 const buildPathD = (arr, maxN) => {
@@ -255,7 +287,18 @@ function updateChartGeometry() {
 
         l.setAttribute("x", String(cx));
         let yOffset = 0;
-        if (n >= 8) {
+        if (n >= 24) {
+            const idx = n - 24;
+            const step = 26; // Increased step for high dimensions
+            yOffset = -(idx * step);
+            const minY = config.margin.top + 10;
+            // Need to calculate current labelY to check bounds
+            const rawY = cy - 40;
+            if (rawY + yOffset < minY) {
+                // Adjust yOffset to respect minY
+                yOffset = minY - rawY;
+            }
+        } else if (n >= 8) {
             const stepA = 20;
             const stepB = 10;
             if (n <= 8) {
@@ -582,6 +625,22 @@ function ensureSvgDefs() {
 
         defs.appendChild(filter);
     }
+
+    if (!defs.querySelector("#glow-blur")) {
+        const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+        filter.setAttribute("id", "glow-blur");
+        filter.setAttribute("x", "-50%");
+        filter.setAttribute("y", "-50%");
+        filter.setAttribute("width", "200%");
+        filter.setAttribute("height", "200%");
+        
+        const blur = document.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+        blur.setAttribute("in", "SourceGraphic");
+        blur.setAttribute("stdDeviation", "3");
+        filter.appendChild(blur);
+        
+        defs.appendChild(filter);
+    }
 }
 
 
@@ -648,8 +707,9 @@ function drawGrid() {
         }
     });
 
-    // Vertical Grid lines (0..24)
-    for (let i = 0; i <= 24; i++) {
+    // Vertical Grid lines (0..31)
+    const maxGridN = config.maxN || 24;
+    for (let i = 0; i <= maxGridN; i++) {
         const x = xScale(i);
         const yTop = config.margin.top;
         const yBottom = config.svgHeight - config.margin.bottom;
@@ -668,7 +728,8 @@ function drawGrid() {
 
 function drawAxesTicks() {
     // X-Axis Ticks
-    for (let i = 0; i <= 24; i++) {
+    const maxTickN = config.maxN || 24;
+    for (let i = 0; i <= maxTickN; i++) {
         const x = xScale(i);
         const y = config.svgHeight - config.margin.bottom;
         
@@ -741,13 +802,17 @@ function prepareDataElements() {
         let r = 14;
         let labelColor = config.colors.black;
         let labelWeight = "normal";
-        let labelSize = "32px"; // Increased base size
+        let labelSize = "32px"; // Default for 24+
+        
+        if (d.n < 24) {
+             labelSize = "18px"; // Smaller for earlier points
+        }
 
         if (d.n === 14) {
             color = config.colors.red;
             labelColor = config.colors.red;
             labelWeight = "normal";
-            labelSize = "32px"; // Increased highlight size
+            labelSize = "18px"; // Slightly larger highlight for 14, but still smaller than big stars
             r = 14;
         }
 
@@ -755,6 +820,7 @@ function prepareDataElements() {
         const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
         g.classList.add("data-point");
         if (d.n === 14) g.classList.add("highlight");
+        if (d.n >= 25) g.classList.add("star-point"); // Mark star points
         g.dataset.targetRadius = r;
         g.dataset.n = d.n;
         g.dataset.val = d.val;
@@ -762,33 +828,72 @@ function prepareDataElements() {
         g.setAttribute("transform", `translate(${x} ${y}) scale(0)`);
         g.style.opacity = "0";
 
-        const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        ring.classList.add("data-point-ring");
-        ring.setAttribute("cx", "0");
-        ring.setAttribute("cy", "0");
-        ring.setAttribute("r", String(r));
-        g.appendChild(ring);
+        if (d.n >= 25) {
+            const starHalo = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            starHalo.setAttribute("d", createStarPath(r * 1.0));
+            starHalo.setAttribute("fill", "none");
+            starHalo.setAttribute("stroke", "gold");
+            starHalo.setAttribute("stroke-width", "8");
+            starHalo.setAttribute("stroke-linejoin", "round");
+            starHalo.setAttribute("opacity", "0.6");
+            starHalo.setAttribute("filter", "url(#glow-blur)");
+            starHalo.classList.add("star-halo");
+            g.appendChild(starHalo);
 
-        const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        halo.classList.add("data-point-halo");
-        halo.setAttribute("cx", "0");
-        halo.setAttribute("cy", "0");
-        halo.setAttribute("r", String(r));
-        g.appendChild(halo);
+            const star = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            star.setAttribute("d", createStarPath(r * 0.8));
+            star.setAttribute("fill", "rgba(255, 255, 255, 0.9)");
+            star.setAttribute("stroke", "white");
+            star.setAttribute("stroke-width", "3");
+            star.setAttribute("stroke-linejoin", "round");
+            star.classList.add("data-point-star");
+            star.classList.add("star-main");
+            g.appendChild(star);
 
-        const core = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        core.classList.add("data-point-core");
-        core.setAttribute("cx", "0");
-        core.setAttribute("cy", "0");
-        core.setAttribute("r", String(Math.max(4, r * 0.5)));
-        g.appendChild(core);
+            // Inner glow/particle emitter center (Optional, can keep or remove)
+            const core = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            core.classList.add("data-point-core");
+            core.setAttribute("cx", "0");
+            core.setAttribute("cy", "0");
+            core.setAttribute("r", String(Math.max(2, r * 0.2)));
+            core.setAttribute("fill", "white");
+            g.appendChild(core);
+        } else {
+            const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            ring.classList.add("data-point-ring");
+            ring.setAttribute("cx", "0");
+            ring.setAttribute("cy", "0");
+            ring.setAttribute("r", String(r));
+            g.appendChild(ring);
+    
+            const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            halo.classList.add("data-point-halo");
+            halo.setAttribute("cx", "0");
+            halo.setAttribute("cy", "0");
+            halo.setAttribute("r", String(r));
+            g.appendChild(halo);
+    
+            const core = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            core.classList.add("data-point-core");
+            core.setAttribute("cx", "0");
+            core.setAttribute("cy", "0");
+            core.setAttribute("r", String(Math.max(4, r * 0.5)));
+            g.appendChild(core);
+        }
 
         pointsGroup.appendChild(g);
 
-        // Label
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
         text.setAttribute("x", x);
-        text.setAttribute("y", y - 28);
+        let labelY = y - 28;
+        if (d.n >= 24) {
+            const idx = d.n - 24;
+            const step = 26;
+            labelY -= idx * step;
+            const minY = config.margin.top + 10;
+            if (labelY < minY) labelY = minY;
+        }
+        text.setAttribute("y", labelY);
         text.classList.add("point-label");
         if (d.n === 7) text.classList.add("highlight");
         
@@ -1251,6 +1356,134 @@ function startAnimation() {
             }, [], `finalWave+=${waveStart + i * waveStep}`);
         }
         
+        tl.addLabel("allPointsLit", `finalWave+=${waveStart + 24 * waveStep + 1.0}`);
+
+        // --- NEW PHASE: Star Awakening (25-31) ---
+        
+        // 1. Breathing Halo for n=24 (The "One")
+        const breatheDur = 3.0;
+        
+        // --- NEW: Expand Axis Ahead of Time ---
+        // Tween minAxisN to 31 so that the chart squeezes/shifts ONCE before stars appear.
+        // DELAYED START: Wait 0s (start immediately) after allPointsLit before expanding.
+        const expansionDelay = 0.0;
+        const expansionDuration = 5.0; // Smoother, longer duration
+        
+        tl.to(config, {
+            minAxisN: 31,
+            duration: expansionDuration,
+            ease: "power2.inOut"
+        }, `allPointsLit+=${expansionDelay}`);
+
+        tl.call(() => {
+            const pt24 = pointsGroup.querySelector('g.data-point[data-n="24"]');
+            if (pt24) {
+                const halo = pt24.querySelector('.data-point-halo');
+                if (halo) {
+                     gsap.to(halo, {
+                        attr: { r: 60 },
+                        opacity: 0.3,
+                        duration: 1.5,
+                        yoyo: true,
+                        repeat: 3,
+                        ease: "sine.inOut"
+                     });
+                }
+            }
+        }, [], "allPointsLit");
+
+        // Wait for breathing + expansion to finish
+        // Total wait needs to cover the expansion end time to avoid stars popping in during movement
+        // Expansion ends at: allPointsLit + expansionDelay + expansionDuration = 1.0 + 3.0 = 4.0s
+        // breatheDur is 3.0s. So we need at least 4.0s total wait from allPointsLit.
+        const totalWait = Math.max(breatheDur, expansionDelay + expansionDuration);
+        
+        tl.to({}, { duration: totalWait }, "allPointsLit");
+        
+        // 2. Reveal 25-31 (Stars)
+        const starStartN = 25;
+        const starEndN = 31;
+        const starStepDur = 0.8;
+
+        for (let i = starStartN; i <= starEndN; i++) {
+             const labelTime = `starReveal${i}`;
+             // Start stars after the totalWait
+             const startTime = `allPointsLit+=${totalWait + (i - starStartN) * starStepDur}`;
+             tl.addLabel(labelTime, startTime);
+
+             // Reveal Star Point
+             // NOTE: config.n controls the line drawing.
+             // Since axis is already at 31 (via minAxisN), increasing config.n won't shift the axis,
+             // it will just draw the line further to the right.
+             tl.to(config, { n: i, yMax: data.find(d => d.n === i).val * 1.1, duration: starStepDur, ease: "power2.out" }, labelTime);
+             
+            tl.call(() => {
+                const pt = pointsGroup.querySelector(`g.data-point[data-n="${i}"]`);
+                if (!pt) return;
+
+                const t = pt.getAttribute("transform") || "";
+                const newT = t.replace(/scale\([^)]*\)/, "scale(1)");
+                pt.setAttribute("transform", newT);
+                pt.style.opacity = "1";
+                
+                const label = labelsGroup.querySelector(`#label-${i - 1}`);
+                if (label) {
+                    gsap.to(label, { opacity: 1, duration: 0.4 });
+                }
+
+                const halo = pt.querySelector(".star-halo");
+                const starShape = pt.querySelector(".star-main") || pt.querySelector(".data-point-star");
+                if (halo) {
+                    gsap.to(halo, {
+                        opacity: 0.9,
+                        duration: 2.2,
+                        yoyo: true,
+                        repeat: -1,
+                        ease: "sine.inOut"
+                    });
+                }
+                if (starShape) {
+                    gsap.fromTo(
+                        starShape,
+                        { rotation: -12, transformOrigin: "50% 50%" },
+                        { rotation: 0, duration: 0.6, ease: "power2.out" }
+                    );
+                    gsap.to(starShape, {
+                        scale: 1.06,
+                        transformOrigin: "50% 50%",
+                        duration: 2.2,
+                        yoyo: true,
+                        repeat: -1,
+                        ease: "sine.inOut"
+                    });
+                }
+
+                const cx = xScale(i);
+                const cy = yScale(data.find(d => d.n === i).val);
+                
+                for (let k = 0; k < 12; k++) {
+                    const p = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    p.setAttribute("cx", cx);
+                    p.setAttribute("cy", cy);
+                    p.setAttribute("r", 0.6 + Math.random() * 1.0);
+                    p.setAttribute("fill", "rgba(255, 255, 255, 0.55)");
+                    particleGroup.appendChild(p);
+                    
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = 20 + Math.random() * 40;
+                    gsap.to(p, {
+                        attr: { cx: cx + Math.cos(angle) * dist, cy: cy + Math.sin(angle) * dist },
+                        opacity: 0,
+                        duration: 0.9 + Math.random() * 0.4,
+                        ease: "power2.out",
+                        onComplete: () => p.remove()
+                    });
+                }
+            }, [], labelTime);
+        }
+        
+        tl.addLabel("starsComplete", `allPointsLit+=${breatheDur + (starEndN - starStartN + 1) * starStepDur + 1.0}`);
+
         // Final contemplation hold
         tl.to({}, { duration: 4.0 });
 
@@ -1344,8 +1577,8 @@ function startAnimation() {
     }
 
     // --- PREVIEW JUMP ---
-    // Jump to captureStart13 for previewing
-    tl.seek("captureStart13");
+    // Jump to allPointsLit for previewing
+    tl.seek("allPointsLit");
     
     // Force update camera to match the new time
     if (config.cameraEnabled) {

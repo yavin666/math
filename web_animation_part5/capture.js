@@ -62,7 +62,7 @@ const path = require('path');
             const tl = window.tl;
             const duration = tl.duration();
             const labels = tl.labels || {};
-            const startTime = typeof labels.captureStart13 === "number" ? labels.captureStart13 : 0;
+            const startTime = typeof labels.allPointsLit === "number" ? labels.allPointsLit : 0;
             return { duration, startTime };
         });
 

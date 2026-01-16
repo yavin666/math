@@ -47,9 +47,18 @@ const width = config.svgWidth - config.margin.left - config.margin.right;
 const height = config.svgHeight - config.margin.top - config.margin.bottom;
 
 // Scales
+const getVisualN = (n) => {
+    const boundary = 14;
+    const compression = 0.35; // Compress 0-14 to 35%
+    if (n <= boundary) {
+        return n * compression;
+    }
+    return (boundary * compression) + (n - boundary);
+};
+
 const xScale = (n) => {
-    const denom = Math.max(getXAxisExtentN(), 1);
-    return config.margin.left + (n / denom) * width;
+    const denom = Math.max(getVisualN(getXAxisExtentN()), 0.1);
+    return config.margin.left + (getVisualN(n) / denom) * width;
 };
 
 /**
@@ -741,13 +750,17 @@ function prepareDataElements() {
         let r = 14;
         let labelColor = config.colors.black;
         let labelWeight = "normal";
-        let labelSize = "32px"; // Increased base size
+        let labelSize = "36px"; // Standard size for >= 14
+
+        if (d.n < 14) {
+            labelSize = "20px"; // Smaller for historical data
+        }
 
         if (d.n === 14) {
             color = config.colors.red;
             labelColor = config.colors.red;
             labelWeight = "normal";
-            labelSize = "32px"; // Increased highlight size
+            labelSize = "48px"; // Highlight size for breakthrough
             r = 14;
         }
 
