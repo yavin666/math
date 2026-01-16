@@ -741,13 +741,13 @@ function prepareDataElements() {
         let r = 14;
         let labelColor = config.colors.black;
         let labelWeight = "normal";
-        let labelSize = "36px"; // Increased base size
+        let labelSize = "32px"; // Increased base size
 
         if (d.n === 14) {
             color = config.colors.red;
             labelColor = config.colors.red;
             labelWeight = "normal";
-            labelSize = "36px"; // Increased highlight size
+            labelSize = "32px"; // Increased highlight size
             r = 14;
         }
 
