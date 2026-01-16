@@ -1,0 +1,297 @@
+:root {
+    /* Light Mode (Default) */
+    --bg-color: #ffffff;
+    --text-primary: #333333;
+    --text-secondary: #444444;
+    --axis-color: #000000;
+    --grid-color: #f1f1f1;
+    --grid-opacity: 1;
+    
+    --line-green: #000000;
+    --line-red: #000000;
+    --line-black: #333333;
+    
+    --point-default: #333333;
+    --point-highlight: #000000;
+    
+    --glow-filter: none;
+    --point-animation: none;
+}
+
+body.dark-mode {
+    /* Dark Mode (Night Style) */
+    --bg-color: #050505; /* Deep rich black */
+    --text-primary: #ffffff; /* Data labels */
+    --text-secondary: rgba(255, 255, 255, 0.4); /* Axis labels (lower opacity) */
+    --axis-color: rgba(255, 255, 255, 0.3); /* Axis lines (subtle) */
+    --grid-color: rgba(255, 255, 255, 0.1); /* Very subtle grid */
+    --grid-opacity: 1;
+    
+    --line-green: rgba(255, 255, 255, 0.85);
+    --line-red: rgba(255, 255, 255, 0.85);
+    --line-black: rgba(255, 255, 255, 0.85);
+    
+    --point-default: #ffffff;
+    --point-highlight: #ffffff;
+    
+    --glow-filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.5)) drop-shadow(0 0 12px rgba(255, 255, 255, 0.3));
+    --point-animation: breathe 4s infinite ease-in-out;
+    
+    /* Vignette background for depth */
+    background: radial-gradient(circle at center, #1a1a1a 0%, #000000 100%);
+}
+
+@keyframes breathe {
+    0% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.3); }
+    100% { opacity: 0.6; transform: scale(1); }
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    transition: background-color 0.3s, color 0.3s, stroke 0.3s, fill 0.3s;
+}
+
+body {
+    font-family: "Georgia", serif; /* Google Scholar style */
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    width: 96%;
+    max-width: 3000px;
+    height: 95vh;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center; /* Center chart */
+}
+
+/* Title removed in HTML, keeping CSS for reference just in case */
+.chart-title {
+    font-size: 24px;
+    font-family: Arial, sans-serif;
+    color: #1a0dab; /* Google Link Blue style for headers */
+    margin-bottom: 20px;
+}
+
+.chart-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 2200px;
+    height: 80vh; /* Increased height */
+    flex: 1 1 auto;
+    margin: 0;
+}
+
+.camera-layer {
+    width: 100%;
+    height: 100%;
+    will-change: transform;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
+}
+
+svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.axis-label {
+    position: absolute;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 32px;
+    color: var(--text-secondary);
+    pointer-events: none;
+    transition: color 0.3s;
+}
+
+.x-label {
+    left: 50%;
+    bottom: 10px;
+    transform: translateX(-50%);
+}
+
+.y-label {
+    top: 50%;
+    left: 10px;
+    transform: translateY(-50%) rotate(-90deg);
+    transform-origin: left top;
+}
+
+.axis {
+    stroke: var(--axis-color);
+    stroke-width: 2; /* Thicker axis */
+    vector-effect: non-scaling-stroke;
+    transition: stroke 0.3s;
+}
+
+.grid-line {
+    stroke: var(--grid-color);
+    stroke-width: 1;
+    opacity: var(--grid-opacity);
+    vector-effect: non-scaling-stroke;
+}
+
+.tick-text {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 24px; /* Larger ticks */
+    fill: var(--text-primary);
+    text-anchor: middle;
+    transition: fill 0.3s;
+}
+
+.data-line {
+    stroke-width: 3px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    opacity: 1;
+    vector-effect: non-scaling-stroke; /* Ensure line stays thick even if scaled */
+    filter: var(--glow-filter);
+    transition: stroke 0.3s, filter 0.3s;
+}
+
+/* Add subtle opacity variation for data line in dark mode */
+body.dark-mode .data-line {
+    opacity: 1;
+    stroke-width: 3px;
+}
+
+/* Specific Line Coloring overrides */
+#path-green { stroke: var(--line-green) !important; }
+#path-black-main { stroke: var(--line-black) !important; }
+#path-black-last { stroke: var(--line-black) !important; }
+
+body.dark-mode #path-green { stroke-opacity: 0.82; }
+body.dark-mode #path-black-main { stroke-opacity: 0.9; }
+body.dark-mode #path-black-last { stroke-opacity: 0.96; }
+
+.data-point {
+    opacity: 1;
+}
+
+.data-point-ring {
+    fill: none;
+    stroke: rgba(0, 0, 0, 0.22);
+    stroke-width: 2px;
+    vector-effect: non-scaling-stroke;
+}
+
+.data-point-halo {
+    fill: none;
+    stroke: rgba(0, 0, 0, 0.22);
+    stroke-width: 5;
+}
+
+.data-point-core {
+    fill: rgba(0, 0, 0, 0.92);
+    transform-box: fill-box;
+    transform-origin: center;
+}
+
+body:not(.dark-mode) .data-point-core {
+    transform: scale(1.65);
+}
+
+body.dark-mode .data-point-halo {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.9);
+    stroke-width: 1px;
+    vector-effect: non-scaling-stroke;
+    opacity: 0;
+    transform-origin: center;
+}
+
+body.dark-mode .data-point-core {
+    fill: rgba(255, 255, 255, 0.98);
+}
+
+body.dark-mode .data-point-ring {
+    stroke: rgba(255, 255, 255, 0.22);
+}
+
+body.dark-mode .data-point-halo {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.8));
+}
+
+body.dark-mode .data-point-core {
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.45));
+    animation: core-breathe 3.6s infinite ease-in-out;
+}
+
+@keyframes core-breathe {
+    0% { opacity: 0.7; }
+    55% { opacity: 1; }
+    100% { opacity: 0.7; }
+}
+
+.point-label {
+    font-family: "Arial", sans-serif;
+    fill: var(--text-primary) !important;
+    text-shadow: 0 0 4px var(--bg-color); /* Improve readability */
+    text-anchor: middle;
+}
+
+.point-label.highlight {
+    fill: var(--point-highlight) !important;
+}
+
+.math-term {
+    font-family: "Times New Roman", Times, serif;
+    font-style: italic;
+}
+
+.tick-line-x {
+    stroke: var(--axis-color);
+    vector-effect: non-scaling-stroke;
+}
+
+.mode-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--bg-color);
+    border: 2px solid var(--text-primary);
+    color: var(--text-primary);
+    padding: 10px 20px;
+    border-radius: 30px;
+    cursor: pointer;
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    z-index: 1000;
+    transition: all 0.3s ease;
+}
+
+body:not(.controls-visible) .mode-toggle {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-6px);
+}
+
+body.controls-visible .mode-toggle {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.mode-toggle:hover {
+    background: var(--text-primary);
+    color: var(--bg-color);
+}
+
+.camera-toggle {
+    top: 72px;
+    font-size: 14px;
+    padding: 8px 16px;
+}
