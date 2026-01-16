@@ -34,7 +34,7 @@ body.dark-mode {
     --point-default: #ffffff;
     --point-highlight: #ffffff;
     
-    --glow-filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.5)) drop-shadow(0 0 12px rgba(255, 255, 255, 0.3));
+    --glow-filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.18)) drop-shadow(0 0 6px rgba(255, 255, 255, 0.10));
     --point-animation: breathe 4s infinite ease-in-out;
     
     /* Vignette background for depth */
@@ -162,8 +162,9 @@ svg {
 
 /* Add subtle opacity variation for data line in dark mode */
 body.dark-mode .data-line {
-    opacity: 1;
+    opacity: 0.42;
     stroke-width: 3px;
+    filter: none;
 }
 
 /* Specific Line Coloring overrides */
@@ -171,9 +172,9 @@ body.dark-mode .data-line {
 #path-black-main { stroke: var(--line-black) !important; }
 #path-black-last { stroke: var(--line-black) !important; }
 
-body.dark-mode #path-green { stroke-opacity: 0.82; }
-body.dark-mode #path-black-main { stroke-opacity: 0.9; }
-body.dark-mode #path-black-last { stroke-opacity: 0.96; }
+body.dark-mode #path-green { stroke-opacity: 0.65; }
+body.dark-mode #path-black-main { stroke-opacity: 0.7; }
+body.dark-mode #path-black-last { stroke-opacity: 0.75; }
 
 .data-point {
     opacity: 1;
@@ -206,11 +207,11 @@ body.dark-mode .data-point-core {
 }
 
 body.dark-mode .data-point-halo {
-    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.25));
+    filter: drop-shadow(0 0 14px rgba(255, 255, 255, 0.35)) drop-shadow(0 0 26px rgba(255, 255, 255, 0.12));
 }
 
 body.dark-mode .data-point-core {
-    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.45));
+    filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.70)) drop-shadow(0 0 22px rgba(255, 255, 255, 0.18));
     animation: core-breathe 3.6s infinite ease-in-out;
 }
 
@@ -223,8 +224,15 @@ body.dark-mode .data-point-core {
 .point-label {
     font-family: "Arial", sans-serif;
     fill: var(--text-primary) !important;
-    text-shadow: 0 0 4px var(--bg-color); /* Improve readability */
+    paint-order: stroke fill;
+    stroke: rgba(0, 0, 0, 0.75);
+    stroke-width: 5px;
+    stroke-linejoin: round;
     text-anchor: middle;
+}
+
+.dark-mode .point-label {
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.28));
 }
 
 .point-label.highlight {

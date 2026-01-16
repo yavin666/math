@@ -4,11 +4,7 @@ const data = [
     { n: 2, val: 6 }, { n: 3, val: 12 }, { n: 4, val: 24 }, { n: 5, val: 40 },
     { n: 6, val: 72 }, { n: 7, val: 126 }, { n: 8, val: 240 }, { n: 9, val: 306 },
     { n: 10, val: 500 }, { n: 11, val: 582 }, { n: 12, val: 840 }, { n: 13, val: 1154 },
-    { n: 14, val: 1932 }, { n: 15, val: 2564 }, { n: 16, val: 4320 }, { n: 17, val: 5730 },
-    { n: 18, val: 7654 }, { n: 19, val: 11692 }, { n: 20, val: 19448 },
-    { n: 21, val: 29768 }, { n: 22, val: 49896 }, { n: 23, val: 93150 }, { n: 24, val: 196560 },
-    { n: 25, val: 197048 }, { n: 26, val: 198512 }, { n: 27, val: 199976 }, { n: 28, val: 204368 },
-    { n: 29, val: 208272 }, { n: 30, val: 219984 }, { n: 31, val: 232874 }
+    { n: 14, val: 1932 }
 ];
 
 // Configuration
@@ -23,7 +19,7 @@ const config = {
     },
     yMax: 100, 
     n: 2, 
-    maxN: 24,
+    maxN: 14,
     cameraEnabled: true,
     dataAlpha: 0,
     firstValueAlpha: 0,
@@ -42,7 +38,10 @@ const width = config.svgWidth - config.margin.left - config.margin.right;
 const height = config.svgHeight - config.margin.top - config.margin.bottom;
 
 // Scales
-const xScale = (n) => config.margin.left + (n / 24) * width;
+const xScale = (n) => {
+    const denom = Math.max(config.maxN ?? 1, 1);
+    return config.margin.left + (n / denom) * width;
+};
 
 const segments = {
     green: data.slice(0, 7), // n=2 to n=7 (value 126)
@@ -466,8 +465,9 @@ function drawGrid() {
         }
     });
 
-    // Vertical Grid lines (0..31)
-    for (let i = 0; i <= 24; i++) {
+    // Vertical Grid lines (0..maxN)
+    const maxGridN = config.maxN ?? 24;
+    for (let i = 0; i <= maxGridN; i++) {
         const x = xScale(i);
         const yTop = config.margin.top;
         const yBottom = config.svgHeight - config.margin.bottom;
@@ -486,7 +486,8 @@ function drawGrid() {
 
 function drawAxesTicks() {
     // X-Axis Ticks
-    for (let i = 0; i <= 24; i++) {
+    const maxTickN = config.maxN ?? 24;
+    for (let i = 0; i <= maxTickN; i++) {
         const x = xScale(i);
         const y = config.svgHeight - config.margin.bottom;
         
@@ -614,6 +615,10 @@ function prepareDataElements() {
 }
 
 function startAnimation() {
+    const maxN = config.maxN ?? 14;
+    const maxValUpToMaxN = data.reduce((acc, p) => (p.n <= maxN ? Math.max(acc, p.val) : acc), 0);
+    const yMaxTargetAtMaxN = Math.max(200, maxValUpToMaxN * 1.1);
+
     const tl = gsap.timeline({ 
         defaults: { ease: "none" },
         onUpdate: updateChartGeometry
@@ -842,12 +847,12 @@ function startAnimation() {
     // User wants "burst at ~5000". n=16 is 4320.
     // We accelerate n and drastically increase yMax
     tl.to(config, {
-        n: 24,
+        n: maxN,
         duration: 6,
         ease: "power4.inOut"
     }, "phase1+=7");
     tl.to(config, {
-        yMax: 200000,
+        yMax: yMaxTargetAtMaxN,
         duration: 6,
         ease: "power4.inOut"
     }, "<+0.45");
