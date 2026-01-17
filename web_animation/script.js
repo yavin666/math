@@ -62,12 +62,22 @@ const yScale = (val) => {
 const buildPathD = (arr, maxN) => {
     let dStr = "";
     let hasStarted = false;
+
+    const getVal = (item) => {
+        if (config.specialGrowthEnabled) {
+            if (item.n === 10) return specialGrowth.v10;
+            if (item.n === 11) return specialGrowth.v11;
+        }
+        return item.val;
+    };
     
     for (let i = 0; i < arr.length; i++) {
         const p = arr[i];
+        const pVal = getVal(p);
+
         if (p.n <= maxN) {
             const x = xScale(p.n);
-            const y = yScale(p.val);
+            const y = yScale(pVal);
             if (!hasStarted) {
                 dStr += `M ${x} ${y}`;
                 hasStarted = true;
@@ -78,9 +88,10 @@ const buildPathD = (arr, maxN) => {
             // Interpolate to current maxN if we are in the middle of a segment
             if (i > 0 && arr[i-1].n < maxN) {
                 const prev = arr[i-1];
+                const prevVal = getVal(prev);
                 // Linear interpolation
                 const ratio = (maxN - prev.n) / (p.n - prev.n);
-                const val = prev.val + (p.val - prev.val) * ratio;
+                const val = prevVal + (pVal - prevVal) * ratio;
                 const x = xScale(maxN);
                 const y = yScale(val);
                 dStr += ` L ${x} ${y}`;
@@ -164,7 +175,17 @@ function updateChartGeometry() {
         const firstAlpha = n === 1 ? (config.firstValueAlpha ?? 1) : 1;
         const growthTargetN = config.growthTargetN;
         const isGrowthTarget = growthTargetN == null || n === growthTargetN;
-        const emphasis = (config.specialGrowthEnabled && isGrowthTarget && (n === 10 || n === 11)) ? (1 + 0.35 * (config.growthEmphasis ?? 0)) : 1;
+        const emphasis = (config.specialGrowthEnabled && isGrowthTarget && (n === 10 || n === 11)) ? (1 + 1.2 * (config.growthEmphasis ?? 0)) : 1;
+        
+        const core = p.querySelector(".data-point-core");
+        if (core) {
+             if (config.specialGrowthEnabled && isGrowthTarget && (n === 10 || n === 11) && (config.growthEmphasis > 0)) {
+                 core.style.fill = "var(--line-red)";
+             } else {
+                 core.style.fill = "";
+             }
+        }
+
         p.setAttribute("transform", `translate(${x} ${y}) scale(${tp * firstAlpha * emphasis})`);
         let opacity = tp * (config.dataAlpha ?? 1) * firstAlpha;
         const dim = config.focusDim ?? 0;
@@ -227,13 +248,21 @@ function updateChartGeometry() {
             const growthTargetN = config.growthTargetN;
             const isGrowthTarget = growthTargetN == null || n === growthTargetN;
             if (isGrowthTarget) {
-                const s = 1 + 0.35 * (config.growthEmphasis ?? 0);
+                const s = 1 + 1.2 * (config.growthEmphasis ?? 0);
                 l.setAttribute("transform", `translate(${cx} ${labelY}) scale(${s}) translate(${-cx} ${-labelY})`);
+                
+                if (config.growthEmphasis > 0) {
+                    l.style.fill = "var(--line-red)";
+                } else {
+                    l.style.fill = "";
+                }
             } else if (l.hasAttribute("transform")) {
                 l.removeAttribute("transform");
+                l.style.fill = "";
             }
         } else if (l.hasAttribute("transform")) {
             l.removeAttribute("transform");
+            l.style.fill = "";
         }
     });
 
@@ -903,11 +932,15 @@ function startAnimation() {
 
     tl.to(config, {
         growthEmphasis: 1,
-        duration: 0.18,
-        ease: "power2.out",
-        yoyo: true,
-        repeat: 1
+        duration: 0.2,
+        ease: "power2.out"
     }, "final+=1.0");
+
+    tl.to(config, {
+        growthEmphasis: 0,
+        duration: 0.2,
+        ease: "power2.in"
+    }, "final+=2.05");
 
     tl.to(config, {
         focusDim10: 1,
@@ -933,11 +966,15 @@ function startAnimation() {
 
     tl.to(config, {
         growthEmphasis: 1,
-        duration: 0.18,
-        ease: "power2.out",
-        yoyo: true,
-        repeat: 1
+        duration: 0.2,
+        ease: "power2.out"
     }, "final+=2.25");
+
+    tl.to(config, {
+        growthEmphasis: 0,
+        duration: 0.2,
+        ease: "power2.in"
+    }, "final+=3.3");
 }
 
 // Run

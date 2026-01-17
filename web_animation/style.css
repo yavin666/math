@@ -223,7 +223,7 @@ body.dark-mode .data-point-core {
 
 .point-label {
     font-family: "Arial", sans-serif;
-    fill: var(--text-primary) !important;
+    fill: var(--text-primary);
     paint-order: stroke fill;
     stroke: rgba(0, 0, 0, 0.75);
     stroke-width: 5px;
@@ -236,7 +236,7 @@ body.dark-mode .data-point-core {
 }
 
 .point-label.highlight {
-    fill: var(--point-highlight) !important;
+    fill: var(--point-highlight);
 }
 
 .math-term {
