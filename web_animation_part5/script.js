@@ -99,23 +99,119 @@ const yScale = (val) => {
     return baseline - ((val - yMin) / (effectiveYMax - yMin)) * h;
 };
 
-const createStarPath = (r) => {
+const createFourPointStarPath = (r) => {
+    // 4-point star path (concave rhombus/diamond)
     let path = "";
-    for (let i = 0; i < 5; i++) {
-        const theta = (Math.PI * 2 * i) / 5 - Math.PI / 2;
+    for (let i = 0; i < 4; i++) {
+        const theta = (Math.PI * 2 * i) / 4 - Math.PI / 2;
         const x = Math.cos(theta) * r;
         const y = Math.sin(theta) * r;
         path += (i === 0 ? "M" : "L") + ` ${x} ${y}`;
         
-        const thetaInner = theta + Math.PI / 5;
-        const rInner = r * 0.4;
+        const thetaInner = theta + Math.PI / 4;
+        const rInner = r * 0.35; // Sharp inner curve
         const xInner = Math.cos(thetaInner) * rInner;
         const yInner = Math.sin(thetaInner) * rInner;
-        path += ` L ${xInner} ${yInner}`;
+        path += ` Q 0 0 ${xInner} ${yInner}`; // Quadratic curve for organic "glass" feel? 
+        // Or simple linear for sharp crystal look. Let's stick to sharp lines first, then maybe curve.
+        // Actually, reference image has curved sides (hypocycloid-ish).
+        // Let's use simple L for now to match the "crystal" geometry logic, or Q for soft.
+        // The reference is sharp-edged but soft-shaded. Let's use L for geometry.
     }
     path += "Z";
-    return path;
+    
+    // Re-do with just L for now to be safe, then we do gradient fill.
+    path = "";
+    for (let i = 0; i < 4; i++) {
+        const theta = (Math.PI * 2 * i) / 4 - Math.PI / 2;
+        const x = Math.cos(theta) * r;
+        const y = Math.sin(theta) * r;
+        path += (i === 0 ? "M" : "L") + ` ${x} ${y}`;
+        
+        const thetaInner = theta + Math.PI / 4;
+        const rInner = r * 0.25; // Very sharp/thin for "sparkle" look
+        const xInner = Math.cos(thetaInner) * rInner;
+        const yInner = Math.sin(thetaInner) * rInner;
+        // path += ` L ${xInner} ${yInner}`;
+        
+        // To make it look like the reference (curved inward), we need Q or C.
+        // Reference looks like a "four-pointed star" with incurved edges.
+        // Control point should be closer to center.
+        const cpR = r * 0.1; 
+        const cpX = Math.cos(thetaInner) * cpR;
+        const cpY = Math.sin(thetaInner) * cpR;
+        path += ` Q ${cpX} ${cpY} ${xInner} ${yInner}`;
+        
+        // Wait, from outer to inner is one curve, inner to next outer is another.
+        // Let's simplify: Just M top, Q center right, Q center bottom, etc?
+        // Actually, the reference is a standard 4-point star with incurved edges.
+    }
+    // Simplified 4-point star with curves
+    const d = [];
+    d.push(`M 0 ${-r}`); // Top
+    d.push(`Q 0 0 ${r} 0`); // Top to Right
+    d.push(`Q 0 0 0 ${r}`); // Right to Bottom
+    d.push(`Q 0 0 ${-r} 0`); // Bottom to Left
+    d.push(`Q 0 0 0 ${-r}`); // Left to Top
+    return d.join(" ");
 };
+
+const createGlassStarGroup = (r) => {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    
+    // Define Gradients if not exists (should be in defs, but we can add inline or ensure they exist)
+    // We'll assume a radial gradient or distinct path fills.
+    // The reference has a "cross" highlight.
+    
+    // Let's build the 4-point shape using 4 separate petals/quadrants for gradients.
+    // Or just one main shape with a gradient overlay.
+    
+    // Reference image analysis:
+    // Center is bright/white.
+    // Tips are slightly darker/golden/skin-tone.
+    // Edges are soft.
+    
+    // 1. Base Shape (Soft glow)
+    const base = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    base.setAttribute("d", createFourPointStarPath(r));
+    base.setAttribute("fill", "url(#star-glass-gradient)"); // We need to define this
+    base.setAttribute("stroke", "none");
+    g.appendChild(base);
+    
+    // 2. Cross Highlight (Bright center streaks)
+    // Vertical highlight
+    const vHigh = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+    vHigh.setAttribute("cx", "0");
+    vHigh.setAttribute("cy", "0");
+    vHigh.setAttribute("rx", String(r * 0.15));
+    vHigh.setAttribute("ry", String(r * 0.8));
+    vHigh.setAttribute("fill", "white");
+    vHigh.setAttribute("opacity", "0.6");
+    vHigh.setAttribute("filter", "url(#glow-blur)");
+    g.appendChild(vHigh);
+
+    // Horizontal highlight
+    const hHigh = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
+    hHigh.setAttribute("cx", "0");
+    hHigh.setAttribute("cy", "0");
+    hHigh.setAttribute("rx", String(r * 0.8));
+    hHigh.setAttribute("ry", String(r * 0.15));
+    hHigh.setAttribute("fill", "white");
+    hHigh.setAttribute("opacity", "0.6");
+    hHigh.setAttribute("filter", "url(#glow-blur)");
+    g.appendChild(hHigh);
+
+    // 3. Central Core (Brightest)
+    const core = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    core.setAttribute("cx", "0");
+    core.setAttribute("cy", "0");
+    core.setAttribute("r", String(r * 0.2));
+    core.setAttribute("fill", "white");
+    g.appendChild(core);
+
+    return g;
+};
+
 
 const buildPathD = (arr, maxN) => {
     let dStr = "";
@@ -604,6 +700,33 @@ function ensureSvgDefs() {
         defs.appendChild(blackGrad);
     }
 
+    if (!defs.querySelector("#star-glass-gradient")) {
+        const starGrad = document.createElementNS("http://www.w3.org/2000/svg", "radialGradient");
+        starGrad.setAttribute("id", "star-glass-gradient");
+        starGrad.setAttribute("cx", "50%");
+        starGrad.setAttribute("cy", "50%");
+        starGrad.setAttribute("r", "50%");
+        starGrad.setAttribute("fx", "50%");
+        starGrad.setAttribute("fy", "50%");
+
+        const s1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+        s1.setAttribute("offset", "0%");
+        s1.setAttribute("stop-color", "#fffbf0"); // Warm white center
+        starGrad.appendChild(s1);
+
+        const s2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+        s2.setAttribute("offset", "40%");
+        s2.setAttribute("stop-color", "#ffefd5"); // Papaya Whip (soft peach)
+        starGrad.appendChild(s2);
+
+        const s3 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+        s3.setAttribute("offset", "100%");
+        s3.setAttribute("stop-color", "#f5deb3"); // Wheat/Gold edge
+        starGrad.appendChild(s3);
+
+        defs.appendChild(starGrad);
+    }
+
     // Semi-transparent background filter for labels
     if (!defs.querySelector("#label-bg")) {
         const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
@@ -760,7 +883,7 @@ function drawAxesTicks() {
         ellipsis.setAttribute("x", String((config.margin.left + xScale(minTickN)) / 2));
         ellipsis.setAttribute("y", String(y + 50));
         ellipsis.setAttribute("class", "tick-text");
-        ellipsis.textContent = "…";
+        ellipsis.textContent = "";
         axesGroup.appendChild(ellipsis);
     }
 
@@ -878,22 +1001,17 @@ function prepareDataElements() {
 
         if (d.n >= 25) {
             const starHalo = document.createElementNS("http://www.w3.org/2000/svg", "path");
-            starHalo.setAttribute("d", createStarPath(r * 1.0));
+            starHalo.setAttribute("d", createFourPointStarPath(r * 2.0)); // Use new shape for halo
             starHalo.setAttribute("fill", "none");
             starHalo.setAttribute("stroke", "gold");
-            starHalo.setAttribute("stroke-width", "8");
+            starHalo.setAttribute("stroke-width", "4"); // Thinner stroke for elegance
             starHalo.setAttribute("stroke-linejoin", "round");
             starHalo.setAttribute("opacity", "0");
             starHalo.setAttribute("filter", "url(#glow-blur)");
             starHalo.classList.add("star-halo");
             g.appendChild(starHalo);
 
-            const star = document.createElementNS("http://www.w3.org/2000/svg", "path");
-            star.setAttribute("d", createStarPath(r * 0.8));
-            star.setAttribute("fill", "rgba(255, 255, 255, 0.9)");
-            star.setAttribute("stroke", "white");
-            star.setAttribute("stroke-width", "3");
-            star.setAttribute("stroke-linejoin", "round");
+            const star = createGlassStarGroup(r * 2.0); // New Glass Star
             star.setAttribute("opacity", "0");
             star.classList.add("data-point-star");
             star.classList.add("star-main");
@@ -1592,7 +1710,7 @@ function startAnimation() {
         // 2. Reveal 25-31 (Stars)
         const starStartN = 25;
         const starEndN = 31;
-        const starStepDur = 0.8;
+        const starStepDur = 0.35; // Shortened interval for silkier sequence
 
         for (let i = starStartN; i <= starEndN; i++) {
              const labelTime = `starReveal${i}`;
@@ -1623,27 +1741,41 @@ function startAnimation() {
                 const halo = pt.querySelector(".star-halo");
                 const starShape = pt.querySelector(".star-main") || pt.querySelector(".data-point-star");
                 if (halo) {
+                    // Initial pop for halo
+                    gsap.fromTo(halo, 
+                        { opacity: 0, scale: 0.5 },
+                        { opacity: 0.9, scale: 1, duration: 0.6, ease: "back.out(1.5)" }
+                    );
+                    
+                    // Breathing loop
                     gsap.to(halo, {
-                        opacity: 0.9,
-                        duration: 2.2,
+                        opacity: 0.5,
+                        scale: 1.1,
+                        duration: 2.0,
                         yoyo: true,
                         repeat: -1,
-                        ease: "sine.inOut"
+                        ease: "sine.inOut",
+                        delay: 0.6
                     });
                 }
                 if (starShape) {
+                    // Exquisite pop-in animation
                     gsap.fromTo(
                         starShape,
-                        { rotation: -12, transformOrigin: "50% 50%" },
-                        { rotation: 0, duration: 0.6, ease: "power2.out" }
+                        { opacity: 0, scale: 0.2, rotation: -45, transformOrigin: "50% 50%" },
+                        { opacity: 1, scale: 1, rotation: 0, duration: 0.8, ease: "elastic.out(1, 0.5)" }
                     );
+                    
+                    // Gentle floating/breathing
                     gsap.to(starShape, {
-                        scale: 1.06,
+                        scale: 1.1,
+                        rotation: 5,
                         transformOrigin: "50% 50%",
-                        duration: 2.2,
+                        duration: 2.5,
                         yoyo: true,
                         repeat: -1,
-                        ease: "sine.inOut"
+                        ease: "sine.inOut",
+                        delay: 0.8
                     });
                 }
 
@@ -1766,7 +1898,8 @@ function startAnimation() {
     }
 
     // --- PREVIEW JUMP ---
-    tl.seek("starsComplete");
+    // tl.seek("starsComplete"); // Skipped stars
+    tl.seek("allPointsLit"); // Jump to just before stars appear for preview
     
     // Force update camera to match the new time
     if (config.cameraEnabled) {
