@@ -99,114 +99,66 @@ const yScale = (val) => {
     return baseline - ((val - yMin) / (effectiveYMax - yMin)) * h;
 };
 
-const createFourPointStarPath = (r) => {
-    // 4-point star path (concave rhombus/diamond)
+const createStarPath = (r) => {
+    // 5-point star path
     let path = "";
-    for (let i = 0; i < 4; i++) {
-        const theta = (Math.PI * 2 * i) / 4 - Math.PI / 2;
+    for (let i = 0; i < 5; i++) {
+        const theta = (Math.PI * 2 * i) / 5 - Math.PI / 2;
         const x = Math.cos(theta) * r;
         const y = Math.sin(theta) * r;
         path += (i === 0 ? "M" : "L") + ` ${x} ${y}`;
         
-        const thetaInner = theta + Math.PI / 4;
-        const rInner = r * 0.35; // Sharp inner curve
+        const thetaInner = theta + Math.PI / 5;
+        const rInner = r * 0.5; // Classic 5-point ratio
         const xInner = Math.cos(thetaInner) * rInner;
         const yInner = Math.sin(thetaInner) * rInner;
-        path += ` Q 0 0 ${xInner} ${yInner}`; // Quadratic curve for organic "glass" feel? 
-        // Or simple linear for sharp crystal look. Let's stick to sharp lines first, then maybe curve.
-        // Actually, reference image has curved sides (hypocycloid-ish).
-        // Let's use simple L for now to match the "crystal" geometry logic, or Q for soft.
-        // The reference is sharp-edged but soft-shaded. Let's use L for geometry.
+        path += ` L ${xInner} ${yInner}`;
     }
     path += "Z";
-    
-    // Re-do with just L for now to be safe, then we do gradient fill.
-    path = "";
-    for (let i = 0; i < 4; i++) {
-        const theta = (Math.PI * 2 * i) / 4 - Math.PI / 2;
-        const x = Math.cos(theta) * r;
-        const y = Math.sin(theta) * r;
-        path += (i === 0 ? "M" : "L") + ` ${x} ${y}`;
-        
-        const thetaInner = theta + Math.PI / 4;
-        const rInner = r * 0.25; // Very sharp/thin for "sparkle" look
-        const xInner = Math.cos(thetaInner) * rInner;
-        const yInner = Math.sin(thetaInner) * rInner;
-        // path += ` L ${xInner} ${yInner}`;
-        
-        // To make it look like the reference (curved inward), we need Q or C.
-        // Reference looks like a "four-pointed star" with incurved edges.
-        // Control point should be closer to center.
-        const cpR = r * 0.1; 
-        const cpX = Math.cos(thetaInner) * cpR;
-        const cpY = Math.sin(thetaInner) * cpR;
-        path += ` Q ${cpX} ${cpY} ${xInner} ${yInner}`;
-        
-        // Wait, from outer to inner is one curve, inner to next outer is another.
-        // Let's simplify: Just M top, Q center right, Q center bottom, etc?
-        // Actually, the reference is a standard 4-point star with incurved edges.
-    }
-    // Simplified 4-point star with curves
-    const d = [];
-    d.push(`M 0 ${-r}`); // Top
-    d.push(`Q 0 0 ${r} 0`); // Top to Right
-    d.push(`Q 0 0 0 ${r}`); // Right to Bottom
-    d.push(`Q 0 0 ${-r} 0`); // Bottom to Left
-    d.push(`Q 0 0 0 ${-r}`); // Left to Top
-    return d.join(" ");
+    return path;
 };
 
-const createGlassStarGroup = (r) => {
+const create3DGoldStarGroup = (r) => {
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     
-    // Define Gradients if not exists (should be in defs, but we can add inline or ensure they exist)
-    // We'll assume a radial gradient or distinct path fills.
-    // The reference has a "cross" highlight.
-    
-    // Let's build the 4-point shape using 4 separate petals/quadrants for gradients.
-    // Or just one main shape with a gradient overlay.
-    
-    // Reference image analysis:
-    // Center is bright/white.
-    // Tips are slightly darker/golden/skin-tone.
-    // Edges are soft.
-    
-    // 1. Base Shape (Soft glow)
-    const base = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    base.setAttribute("d", createFourPointStarPath(r));
-    base.setAttribute("fill", "url(#star-glass-gradient)"); // We need to define this
-    base.setAttribute("stroke", "none");
-    g.appendChild(base);
-    
-    // 2. Cross Highlight (Bright center streaks)
-    // Vertical highlight
-    const vHigh = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
-    vHigh.setAttribute("cx", "0");
-    vHigh.setAttribute("cy", "0");
-    vHigh.setAttribute("rx", String(r * 0.15));
-    vHigh.setAttribute("ry", String(r * 0.8));
-    vHigh.setAttribute("fill", "white");
-    vHigh.setAttribute("opacity", "0.6");
-    vHigh.setAttribute("filter", "url(#glow-blur)");
-    g.appendChild(vHigh);
+    // 5 points, 3D faceted look with Warm/Gold tones
+    for (let i = 0; i < 5; i++) {
+        const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2;
+        const angleInner = angle + Math.PI / 5;
+        const angleInnerPrev = angle - Math.PI / 5;
 
-    // Horizontal highlight
-    const hHigh = document.createElementNS("http://www.w3.org/2000/svg", "ellipse");
-    hHigh.setAttribute("cx", "0");
-    hHigh.setAttribute("cy", "0");
-    hHigh.setAttribute("rx", String(r * 0.8));
-    hHigh.setAttribute("ry", String(r * 0.15));
-    hHigh.setAttribute("fill", "white");
-    hHigh.setAttribute("opacity", "0.6");
-    hHigh.setAttribute("filter", "url(#glow-blur)");
-    g.appendChild(hHigh);
+        const outerX = Math.cos(angle) * r;
+        const outerY = Math.sin(angle) * r;
 
-    // 3. Central Core (Brightest)
+        const rInner = r * 0.5; 
+        const innerX = Math.cos(angleInner) * rInner;
+        const innerY = Math.sin(angleInner) * rInner;
+
+        const innerPrevX = Math.cos(angleInnerPrev) * rInner;
+        const innerPrevY = Math.sin(angleInnerPrev) * rInner;
+
+        // Left Face (Shadow/Warm Gold)
+        const pLeft = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        pLeft.setAttribute("d", `M 0 0 L ${innerPrevX} ${innerPrevY} L ${outerX} ${outerY} Z`);
+        pLeft.setAttribute("fill", "#f5deb3"); // Wheat (Warm Shadow)
+        pLeft.setAttribute("stroke", "none");
+        g.appendChild(pLeft);
+
+        // Right Face (Highlight/Ivory)
+        const pRight = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        pRight.setAttribute("d", `M 0 0 L ${outerX} ${outerY} L ${innerX} ${innerY} Z`);
+        pRight.setAttribute("fill", "#fffbf0"); // Warm White (Highlight)
+        pRight.setAttribute("stroke", "none");
+        g.appendChild(pRight);
+    }
+    
+    // Central Glow (Core)
     const core = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     core.setAttribute("cx", "0");
     core.setAttribute("cy", "0");
-    core.setAttribute("r", String(r * 0.2));
-    core.setAttribute("fill", "white");
+    core.setAttribute("r", String(r * 0.25));
+    core.setAttribute("fill", "url(#star-glass-gradient)"); // Use the nice gradient for the core
+    core.setAttribute("opacity", "0.8");
     g.appendChild(core);
 
     return g;
@@ -1001,7 +953,7 @@ function prepareDataElements() {
 
         if (d.n >= 25) {
             const starHalo = document.createElementNS("http://www.w3.org/2000/svg", "path");
-            starHalo.setAttribute("d", createFourPointStarPath(r * 2.0)); // Use new shape for halo
+            starHalo.setAttribute("d", createStarPath(r * 1.8)); // Use new shape for halo
             starHalo.setAttribute("fill", "none");
             starHalo.setAttribute("stroke", "gold");
             starHalo.setAttribute("stroke-width", "4"); // Thinner stroke for elegance
@@ -1011,7 +963,7 @@ function prepareDataElements() {
             starHalo.classList.add("star-halo");
             g.appendChild(starHalo);
 
-            const star = createGlassStarGroup(r * 2.0); // New Glass Star
+            const star = create3DGoldStarGroup(r * 1.8); // New 5-point Gold Star
             star.setAttribute("opacity", "0");
             star.classList.add("data-point-star");
             star.classList.add("star-main");
@@ -1221,7 +1173,7 @@ function startAnimation() {
                 const startY = yScale(fromVal);
                 
                 // We animate 'val' for the label/data, and 'yOffset' for the visual bump
-                const proxy = { val: fromVal, yOffset: 0 };
+                const proxy = { val: fromVal, yOffset: 0, scale: 1 };
                 
                 // Sequence:
                 // 1. Jump up (val stays roughly same or interpolates? Let's interpolate val)
@@ -1235,12 +1187,33 @@ function startAnimation() {
                 const bumpTl = gsap.timeline({
                     onUpdate: () => {
                         const currentVal = proxy.val;
+                        const currentScale = proxy.scale;
+                        
                         // Update Data
                         pt.dataset.val = String(currentVal);
                         if (d) d.val = currentVal;
                         if (label) {
                             label.dataset.val = String(currentVal);
                             label.textContent = String(Math.round(currentVal));
+                            
+                            // Scale the label based on value change progress
+                            // We need to manually set the transform because updateChartGeometry might overwrite it
+                            // Actually, updateChartGeometry handles transform for labels only if config.specialGrowthEnabled is true.
+                            // Here we are in a custom animation sequence.
+                            
+                            // Get current X/Y from updateChartGeometry logic (or cached)
+                            // But since we are changing d.val, updateChartGeometry will move it to the new Y.
+                            // We just want to add SCALE.
+                            
+                            // Since updateChartGeometry runs on main tick, we can set a temporary scale property?
+                            // Or just force the style transform here.
+                            
+                            // Best approach: Use GSAP to animate 'fontSize' or 'scale' directly?
+                            // Scaling via transform is smoother.
+                            // The label has a base position (x, y).
+                            const cx = parseFloat(label.getAttribute("x"));
+                            const cy = parseFloat(label.getAttribute("y"));
+                            label.setAttribute("transform", `translate(${cx} ${cy}) scale(${currentScale}) translate(${-cx} ${-cy})`);
                         }
                         
                         // Update Visual Position
@@ -1290,9 +1263,10 @@ function startAnimation() {
                 
                 const peakVal = toVal + overshootVal;
                 
-                // 1. Fast Up to Peak
+                // 1. Fast Up to Peak + Scale Up
                 bumpTl.to(proxy, {
                     val: peakVal,
+                    scale: 1.5, // Scale up during jump
                     duration: 0.25,
                     ease: "power2.out",
                     onComplete: () => {
@@ -1304,9 +1278,10 @@ function startAnimation() {
                     }
                 });
                 
-                // 2. Bounce Down to Target
+                // 2. Bounce Down to Target + Scale Back
                 bumpTl.to(proxy, {
                     val: toVal,
+                    scale: 1, // Return to normal scale
                     duration: 0.4,
                     ease: "bounce.out"
                 });

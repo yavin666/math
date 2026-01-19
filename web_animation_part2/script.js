@@ -9,7 +9,7 @@ const data = [
 const config = {
     svgWidth: 2200, 
     svgHeight: 1200, 
-    margin: { top: 100, right: 120, bottom: 360, left: 180 }, // Increased margins for labels
+    margin: { top: 100, right: 120, bottom: 460, left: 180 }, // Increased margins for labels
     colors: {
         green: "#2e7d32",
         red: "#d32f2f",
