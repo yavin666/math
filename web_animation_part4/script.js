@@ -15,7 +15,7 @@ const data = [
 const config = {
     svgWidth: 2200, 
     svgHeight: 1200, 
-    margin: { top: 100, right: 120, bottom: 160, left: 180 }, // Increased margins for labels
+    margin: { top: 100, right: 220, bottom: 360, left: 120 }, // Increased margins for labels
     colors: {
         green: "var(--tech-green)",
         red: "#d32f2f",
@@ -504,6 +504,7 @@ function ensureCameraGroup() {
     moveIntoCamera(gridGroup);
     moveIntoCamera(axesGroup);
     moveIntoCamera(linePath);
+    moveIntoCamera(particleGroup);
     moveIntoCamera(pointsGroup);
     moveIntoCamera(labelsGroup);
 
@@ -705,6 +706,25 @@ function drawAxesTicks() {
         text.textContent = i;
         axesGroup.appendChild(text);
     }
+
+    // Y-Axis Title (Kissing Number) - Integrated into SVG
+    const yTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    const yCenter = config.margin.top + (config.svgHeight - config.margin.top - config.margin.bottom) / 2;
+    const xPos = 0; // Left of the axis
+
+    yTitle.setAttribute("x", xPos);
+    yTitle.setAttribute("y", yCenter);
+    yTitle.setAttribute("text-anchor", "middle");
+    yTitle.setAttribute("transform", `rotate(-90, ${xPos}, ${yCenter})`);
+    yTitle.style.fill = "var(--text-secondary)";
+    yTitle.style.fontSize = "32px";
+    yTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+    yTitle.textContent = "Kissing Number";
+    axesGroup.appendChild(yTitle);
+
+    // Remove old HTML label if it exists
+    const oldHtmlLabel = document.querySelector(".axis-label.y-label");
+    if (oldHtmlLabel) oldHtmlLabel.remove();
 }
 
 function prepareDataElements() {
@@ -765,7 +785,7 @@ function prepareDataElements() {
         let r = 14;
         let labelColor = config.colors.black;
         let labelWeight = "normal";
-        let labelSize = "20px";
+        let labelSize = "19px";
 
         if (d.n === 14) {
             color = config.colors.red;

@@ -126,7 +126,7 @@ svg {
 
 .x-label {
     left: 50%;
-    bottom: 10px;
+    bottom: 100px;
     transform: translateX(-50%);
 }
 
