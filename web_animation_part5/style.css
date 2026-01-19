@@ -164,7 +164,7 @@ svg {
 
 /* Add subtle opacity variation for data line in dark mode */
 body.dark-mode .data-line {
-    opacity: 1;
+    opacity: 0.42;
     stroke-width: 3px;
 }
 

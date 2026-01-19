@@ -13,6 +13,10 @@
     
     --point-default: #333333;
     --point-highlight: #000000;
+
+    --tech-green: #00ff8a;
+    --tech-green-glow-1: rgba(0, 255, 138, 0.55);
+    --tech-green-glow-2: rgba(0, 255, 138, 0.22);
     
     --glow-filter: none;
     --point-animation: none;
@@ -33,6 +37,10 @@ body.dark-mode {
     
     --point-default: #ffffff;
     --point-highlight: #ffffff;
+
+    --tech-green: #00ff9a;
+    --tech-green-glow-1: rgba(0, 255, 154, 0.55);
+    --tech-green-glow-2: rgba(0, 255, 154, 0.22);
     
     --glow-filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.5)) drop-shadow(0 0 12px rgba(255, 255, 255, 0.3));
     --point-animation: breathe 4s infinite ease-in-out;
@@ -164,12 +172,16 @@ svg {
 
 /* Add subtle opacity variation for data line in dark mode */
 body.dark-mode .data-line {
-    opacity: 1;
+    opacity: 0.42;
     stroke-width: 3px;
 }
 
 /* Specific Line Coloring overrides */
 #path-green { stroke: var(--line-green) !important; }
+#path-green-overlay {
+    stroke: var(--tech-green) !important;
+    filter: drop-shadow(0 0 8px var(--tech-green-glow-1)) drop-shadow(0 0 18px var(--tech-green-glow-2));
+}
 #path-black-main { stroke: var(--line-black) !important; }
 #path-black-last { stroke: var(--line-black) !important; }
 
@@ -204,6 +216,20 @@ body:not(.dark-mode) .data-point-core {
     transform: scale(1.65);
 }
 
+body:not(.dark-mode) .data-point.is-green .data-point-ring {
+    stroke: rgba(0, 255, 138, 0.32);
+}
+
+body:not(.dark-mode) .data-point.is-green .data-point-halo {
+    stroke: rgba(0, 255, 138, 0.55);
+    filter: drop-shadow(0 0 6px var(--tech-green-glow-1)) drop-shadow(0 0 12px var(--tech-green-glow-2));
+}
+
+body:not(.dark-mode) .data-point.is-green .data-point-core {
+    fill: var(--tech-green);
+    filter: drop-shadow(0 0 6px var(--tech-green-glow-1)) drop-shadow(0 0 14px var(--tech-green-glow-2));
+}
+
 body.dark-mode .data-point-halo {
     fill: none;
     stroke: rgba(255, 255, 255, 0.9);
@@ -230,6 +256,21 @@ body.dark-mode .data-point-core {
     animation: core-breathe 3.6s infinite ease-in-out;
 }
 
+body.dark-mode .data-point.is-green .data-point-ring {
+    stroke: rgba(0, 255, 154, 0.28);
+}
+
+body.dark-mode .data-point.is-green .data-point-halo {
+    stroke: rgba(0, 255, 154, 0.9);
+    filter: drop-shadow(0 0 6px var(--tech-green-glow-1)) drop-shadow(0 0 14px var(--tech-green-glow-2));
+}
+
+body.dark-mode .data-point.is-green .data-point-core {
+    fill: var(--tech-green);
+    filter: drop-shadow(0 0 8px var(--tech-green-glow-1)) drop-shadow(0 0 18px var(--tech-green-glow-2));
+    animation: none;
+}
+
 @keyframes core-breathe {
     0% { opacity: 0.7; }
     55% { opacity: 1; }
@@ -245,6 +286,10 @@ body.dark-mode .data-point-core {
 
 .point-label.highlight {
     fill: var(--point-highlight) !important;
+}
+
+.point-label.is-green {
+    fill: var(--tech-green) !important;
 }
 
 .math-term {

@@ -1,12 +1,5 @@
 // Data Configuration
 const data = [
-    { n: 1, val: 2 },
-    { n: 2, val: 6 }, { n: 3, val: 12 }, { n: 4, val: 24 }, { n: 5, val: 40 },
-    { n: 6, val: 72 }, { n: 7, val: 126 }, { n: 8, val: 240 }, { n: 9, val: 306 },
-    { n: 10, val: 500 }, { n: 11, val: 582 }, { n: 12, val: 840 }, { n: 13, val: 1154 },
-    { n: 14, val: 1932 }, { n: 15, val: 2564 }, { n: 16, val: 4320 }, { n: 17, val: 5730 },
-    { n: 18, val: 7654 }, { n: 19, val: 11692 }, { n: 20, val: 19448 },
-    { n: 21, val: 29768 }, { n: 22, val: 49896 }, { n: 23, val: 93150 }, { n: 24, val: 196560 },
     { n: 25, val: 197048 }, { n: 26, val: 198512 }, { n: 27, val: 199976 }, { n: 28, val: 204368 },
     { n: 29, val: 208272 }, { n: 30, val: 219984 }, { n: 31, val: 232874 }
 ];
@@ -21,8 +14,11 @@ const config = {
         red: "#d32f2f",
         black: "#333333" 
     },
-    yMax: 100, 
-    n: 2, 
+    minN: 25,
+    xPad: 140,
+    yMin: 190000,
+    yMax: 240000, 
+    n: 31, 
     maxN: 31,
     cameraEnabled: true,
     dataAlpha: 0,
@@ -38,7 +34,7 @@ const config = {
     focusDim11: 0,
     growthTargetN: null,
     enableFinalPhase: false,
-    minAxisN: 0 // New config for manual axis expansion
+    minAxisN: 31 // New config for manual axis expansion
 };
 
 const specialGrowth = { v10: 500, v11: 582 };
@@ -50,26 +46,19 @@ const height = config.svgHeight - config.margin.top - config.margin.bottom;
 // Scales
 const xScale = (n) => {
     const extent = getXAxisExtentN();
-    // Non-linear scaling: Compress 0-24, Expand 24-31
-    const splitN = 24;
-    const expansionFactor = 3.5; // Give significantly more space to >24
-
-    const mapN = (v) => {
-        if (v <= splitN) return v;
-        return splitN + (v - splitN) * expansionFactor;
-    };
-
-    const mappedN = mapN(n);
-    const mappedExtent = Math.max(mapN(extent), 1); // Avoid div by zero
-
-    return config.margin.left + (mappedN / mappedExtent) * width;
+    const start = config.minN ?? 0;
+    const span = Math.max(extent - start, 1);
+    const xPad = config.xPad ?? 0;
+    const plotLeft = config.margin.left + xPad;
+    const plotWidth = Math.max(1, width - xPad);
+    return plotLeft + ((n - start) / span) * plotWidth;
 };
 
 /**
  * 获取X轴当前应显示到的维度终点（初始为4，随后随摄像机右移对应的n增长）。
  */
 function getXAxisExtentN() {
-    const base = 4;
+    const base = config.minN ?? 0;
     const max = config.maxN ?? 24;
     const nNow = Number.isFinite(config.n) ? config.n : 0;
     const minN = config.minAxisN ?? 0;
@@ -105,10 +94,9 @@ const yScale = (val) => {
     const top = config.margin.top;
     const baseline = config.svgHeight - config.margin.bottom;
     const h = baseline - top;
-    // Dynamic linear scale based on config.yMax
-    // Ensure yMax doesn't go below a minimum to prevent division by zero or extreme zoom
-    const effectiveYMax = Math.max(config.yMax, 10);
-    return baseline - (val / effectiveYMax) * h;
+    const yMin = Number.isFinite(config.yMin) ? config.yMin : 0;
+    const effectiveYMax = Math.max(config.yMax, yMin + 1);
+    return baseline - ((val - yMin) / (effectiveYMax - yMin)) * h;
 };
 
 const createStarPath = (r) => {
@@ -180,7 +168,8 @@ function updateChartGeometry() {
         // 2. Hide if clustered at bottom (past values that are now too small relative to scale)
         // Threshold increased to 40px to prevent clutter near 0
         const isTooHigh = y < config.margin.top;
-        const isTooLow = val > 0 && y > (config.svgHeight - config.margin.bottom - 30);
+        const yMin = Number.isFinite(config.yMin) ? config.yMin : 0;
+        const isTooLow = val > yMin && y > (config.svgHeight - config.margin.bottom - 30);
         
         if (config.ticksAutoOpacity) {
             const group = line.dataset.group;
@@ -201,7 +190,8 @@ function updateChartGeometry() {
         t.setAttribute("y", String(y));
         
         const isTooHigh = y < config.margin.top;
-        const isTooLow = val > 0 && y > (config.svgHeight - config.margin.bottom - 40); 
+        const yMin = Number.isFinite(config.yMin) ? config.yMin : 0;
+        const isTooLow = val > yMin && y > (config.svgHeight - config.margin.bottom - 40); 
         
         if (config.ticksAutoOpacity) {
             const group = t.dataset.group;
@@ -286,28 +276,7 @@ function updateChartGeometry() {
         }
 
         l.setAttribute("x", String(cx));
-        let yOffset = 0;
-        if (n >= 24) {
-            const idx = n - 24;
-            const step = 26; // Increased step for high dimensions
-            yOffset = -(idx * step);
-            const minY = config.margin.top + 10;
-            // Need to calculate current labelY to check bounds
-            const rawY = cy - 40;
-            if (rawY + yOffset < minY) {
-                // Adjust yOffset to respect minY
-                yOffset = minY - rawY;
-            }
-        } else if (n >= 8) {
-            const stepA = 20;
-            const stepB = 10;
-            if (n <= 8) {
-                yOffset = -((n - 8) * stepA);
-            } else {
-                yOffset = 0;
-            }
-        }
-        const labelY = cy - 40 + yOffset;
+        const labelY = cy - 40;
         l.setAttribute("y", String(labelY));
 
         const leadLabel = 0.55;
@@ -456,6 +425,42 @@ function triggerParticleExplosion(n) {
         ease: "power1.out",
         onComplete: () => flash.remove()
     });
+}
+
+function emitBumpParticles(cx, cy) {
+    const particleCount = 20; // Fewer but clearer particles for bump
+    for (let i = 0; i < particleCount; i++) {
+        const p = document.createElementNS("http://www.w3.org/2000/svg", "rect"); // Use rect for "brick fragments" feel
+        const size = Math.random() * 6 + 4;
+        p.setAttribute("x", cx - size / 2);
+        p.setAttribute("y", cy - size / 2);
+        p.setAttribute("width", size);
+        p.setAttribute("height", size);
+        p.setAttribute("fill", Math.random() > 0.3 ? "#ffd700" : "#ffffff"); 
+        p.style.opacity = 1;
+        particleGroup.appendChild(p);
+        
+        // Shoot mostly upwards and outwards
+        const angle = -Math.PI / 2 + (Math.random() - 0.5) * 2; // -PI/2 is UP. Spread +/- 1 radian (~60 deg)
+        const dist = 60 + Math.random() * 80;
+        const dur = 0.8 + Math.random() * 0.6;
+        
+        // Physics-ish animation
+        const endX = cx + Math.cos(angle) * dist * 1.5;
+        const endY = cy + Math.sin(angle) * dist + 100; // Gravity pulls down
+        
+        gsap.to(p, {
+            attr: { x: endX, y: endY },
+            rotation: Math.random() * 360,
+            opacity: 0,
+            duration: dur,
+            ease: "power2.out", // Start fast, slow down? No, projectile motion is better simulated via custom ease or physics.
+            // Simple approach: Linear motion for X, Power1.in for Y (gravity) - hard to split in one tween.
+            // Just use power2.out for "explosion" feel.
+            ease: "circ.out",
+            onComplete: () => p.remove()
+        });
+    }
 }
 const linePath = document.querySelector("#line-path");
 
@@ -669,15 +674,13 @@ function initChart() {
 }
 
 function drawGrid() {
-    // Horizontal Grid lines - Full range coverage for burst animation
-    const yStepsMicro = [0, 100, 500];
-    const yStepsSmall = [1000, 1500, 2000, 2500, 3000, 4000];
-    const yStepsLarge = [5000, 10000, 15000, 20000, 50000, 100000, 150000, 200000, 250000];
-    const ySteps = [
-        ...yStepsMicro.map((v) => ({ val: v, group: "micro" })),
-        ...yStepsSmall.map((v) => ({ val: v, group: "small" })),
-        ...yStepsLarge.map((v) => ({ val: v, group: "large" }))
-    ];
+    const yMin = Number.isFinite(config.yMin) ? config.yMin : 0;
+    const yTop = 240000;
+    const step = 10000;
+    const ySteps = [];
+    for (let v = yMin; v <= yTop; v += step) {
+        ySteps.push({ val: v, group: "large" });
+    }
 
     ySteps.forEach(({ val, group }) => {
         const y = yScale(val);
@@ -693,23 +696,22 @@ function drawGrid() {
         gridGroup.appendChild(line);
 
         // Y-Axis Labels
-        if (val > 0) {
-            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            text.setAttribute("x", config.margin.left - 80);
-            text.setAttribute("y", y + 4);
-            text.setAttribute("text-anchor", "end");
-            text.setAttribute("class", "tick-text");
-            text.dataset.value = val; 
-            text.dataset.group = group;
-            text.textContent = val;
-            
-            axesGroup.appendChild(text);
-        }
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", config.margin.left - 80);
+        text.setAttribute("y", y + 4);
+        text.setAttribute("text-anchor", "end");
+        text.setAttribute("class", "tick-text");
+        text.dataset.value = val; 
+        text.dataset.group = group;
+        text.textContent = val;
+        
+        axesGroup.appendChild(text);
     });
 
     // Vertical Grid lines (0..31)
     const maxGridN = config.maxN || 24;
-    for (let i = 0; i <= maxGridN; i++) {
+    const minGridN = config.minN ?? 0;
+    for (let i = minGridN; i <= maxGridN; i++) {
         const x = xScale(i);
         const yTop = config.margin.top;
         const yBottom = config.svgHeight - config.margin.bottom;
@@ -729,7 +731,8 @@ function drawGrid() {
 function drawAxesTicks() {
     // X-Axis Ticks
     const maxTickN = config.maxN || 24;
-    for (let i = 0; i <= maxTickN; i++) {
+    const minTickN = config.minN ?? 0;
+    for (let i = minTickN; i <= maxTickN; i++) {
         const x = xScale(i);
         const y = config.svgHeight - config.margin.bottom;
         
@@ -749,6 +752,16 @@ function drawAxesTicks() {
         text.dataset.n = i;
         text.textContent = i;
         axesGroup.appendChild(text);
+    }
+
+    if (minTickN > 0) {
+        const y = config.svgHeight - config.margin.bottom;
+        const ellipsis = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        ellipsis.setAttribute("x", String((config.margin.left + xScale(minTickN)) / 2));
+        ellipsis.setAttribute("y", String(y + 50));
+        ellipsis.setAttribute("class", "tick-text");
+        ellipsis.textContent = "…";
+        axesGroup.appendChild(ellipsis);
     }
 }
 
@@ -802,11 +815,7 @@ function prepareDataElements() {
         let r = 14;
         let labelColor = config.colors.black;
         let labelWeight = "normal";
-        let labelSize = "32px"; // Default for 24+
-        
-        if (d.n < 24) {
-             labelSize = "18px"; // Smaller for earlier points
-        }
+        let labelSize = "44px";
 
         if (d.n === 14) {
             color = config.colors.red;
@@ -820,13 +829,33 @@ function prepareDataElements() {
         const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
         g.classList.add("data-point");
         if (d.n === 14) g.classList.add("highlight");
-        if (d.n >= 25) g.classList.add("star-point"); // Mark star points
         g.dataset.targetRadius = r;
         g.dataset.n = d.n;
         g.dataset.val = d.val;
         g.id = `point-${i}`;
         g.setAttribute("transform", `translate(${x} ${y}) scale(0)`);
         g.style.opacity = "0";
+
+        const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        ring.classList.add("data-point-ring");
+        ring.setAttribute("cx", "0");
+        ring.setAttribute("cy", "0");
+        ring.setAttribute("r", String(r));
+        g.appendChild(ring);
+
+        const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        halo.classList.add("data-point-halo");
+        halo.setAttribute("cx", "0");
+        halo.setAttribute("cy", "0");
+        halo.setAttribute("r", String(r));
+        g.appendChild(halo);
+
+        const core = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        core.classList.add("data-point-core");
+        core.setAttribute("cx", "0");
+        core.setAttribute("cy", "0");
+        core.setAttribute("r", String(Math.max(4, r * 0.5)));
+        g.appendChild(core);
 
         if (d.n >= 25) {
             const starHalo = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -835,7 +864,7 @@ function prepareDataElements() {
             starHalo.setAttribute("stroke", "gold");
             starHalo.setAttribute("stroke-width", "8");
             starHalo.setAttribute("stroke-linejoin", "round");
-            starHalo.setAttribute("opacity", "0.6");
+            starHalo.setAttribute("opacity", "0");
             starHalo.setAttribute("filter", "url(#glow-blur)");
             starHalo.classList.add("star-halo");
             g.appendChild(starHalo);
@@ -846,53 +875,17 @@ function prepareDataElements() {
             star.setAttribute("stroke", "white");
             star.setAttribute("stroke-width", "3");
             star.setAttribute("stroke-linejoin", "round");
+            star.setAttribute("opacity", "0");
             star.classList.add("data-point-star");
             star.classList.add("star-main");
             g.appendChild(star);
-
-            // Inner glow/particle emitter center (Optional, can keep or remove)
-            const core = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-            core.classList.add("data-point-core");
-            core.setAttribute("cx", "0");
-            core.setAttribute("cy", "0");
-            core.setAttribute("r", String(Math.max(2, r * 0.2)));
-            core.setAttribute("fill", "white");
-            g.appendChild(core);
-        } else {
-            const ring = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-            ring.classList.add("data-point-ring");
-            ring.setAttribute("cx", "0");
-            ring.setAttribute("cy", "0");
-            ring.setAttribute("r", String(r));
-            g.appendChild(ring);
-    
-            const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-            halo.classList.add("data-point-halo");
-            halo.setAttribute("cx", "0");
-            halo.setAttribute("cy", "0");
-            halo.setAttribute("r", String(r));
-            g.appendChild(halo);
-    
-            const core = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-            core.classList.add("data-point-core");
-            core.setAttribute("cx", "0");
-            core.setAttribute("cy", "0");
-            core.setAttribute("r", String(Math.max(4, r * 0.5)));
-            g.appendChild(core);
         }
 
         pointsGroup.appendChild(g);
 
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
         text.setAttribute("x", x);
-        let labelY = y - 28;
-        if (d.n >= 24) {
-            const idx = d.n - 24;
-            const step = 26;
-            labelY -= idx * step;
-            const minY = config.margin.top + 10;
-            if (labelY < minY) labelY = minY;
-        }
+        const labelY = y - 28;
         text.setAttribute("y", labelY);
         text.classList.add("point-label");
         if (d.n === 7) text.classList.add("highlight");
@@ -970,8 +963,8 @@ function startAnimation() {
     };
 
     // Initial state
-    config.n = 4.0;
-    config.yMax = 30; // Close up on 4
+    config.n = 31.0;
+    config.yMax = 240000;
     config.axesVisible = true;
     config.dataVisible = true;
     config.dataAlpha = 1;
@@ -1032,6 +1025,181 @@ function startAnimation() {
 
     tl.addLabel("phase1", "start");
 
+    if (data[0]?.n >= 25) {
+        const raisedVals = {
+            25: 197056,
+            26: 198550,
+            27: 200044,
+            28: 204520,
+            29: 209496,
+            30: 220440,
+            31: 238078
+        };
+
+        const morphToStar = (n) => {
+            const pt = pointsGroup.querySelector(`g.data-point[data-n="${n}"]`);
+            if (!pt) return;
+            if (pt.classList.contains("star-point")) return;
+            pt.classList.add("star-point");
+
+            const ring = pt.querySelector(".data-point-ring");
+            const halo = pt.querySelector(".data-point-halo");
+            const core = pt.querySelector(".data-point-core");
+            const starHalo = pt.querySelector(".star-halo");
+            const star = pt.querySelector(".star-main");
+
+            const r = parseFloat(pt.dataset.targetRadius || "14");
+            if (core) gsap.to(core, { attr: { r: Math.max(2, r * 0.2) }, duration: 0.35, ease: "power2.out" });
+            if (ring) gsap.to(ring, { opacity: 0, duration: 0.28, ease: "power2.out" });
+            if (halo) gsap.to(halo, { opacity: 0, duration: 0.28, ease: "power2.out" });
+
+            if (starHalo) {
+                gsap.fromTo(starHalo, { opacity: 0, scale: 0.6 }, { opacity: 0.6, scale: 1, duration: 0.5, ease: "back.out(2)" });
+            }
+            if (star) {
+                gsap.fromTo(star, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2)" });
+            }
+
+            const targetVal = raisedVals[n];
+            if (Number.isFinite(targetVal)) {
+                const d = data.find((x) => x.n === n);
+                const label = labelsGroup.querySelector(`text.point-label[data-n="${n}"]`);
+                const fromVal = parseFloat(pt.dataset.val || (d ? String(d.val) : "0"));
+                const toVal = Math.max(fromVal, targetVal);
+
+                // Mario Bump Effect:
+                // 1. Jump up (overshoot)
+                // 2. Fall back to final position
+                // 3. Update value during jump
+                
+                // Visual displacement in pixels (not affecting data scale)
+                const bumpHeight = 30; // Pixels to jump up
+                
+                // Original Y position is handled by updateChartGeometry usually,
+                // but for this animation we want to override the transform temporarily.
+                // We'll animate a separate object or use a proxy to drive the transform Y offset.
+                
+                // Calculate final Y position based on new value
+                const finalY = yScale(toVal);
+                const startY = yScale(fromVal);
+                
+                // We animate 'val' for the label/data, and 'yOffset' for the visual bump
+                const proxy = { val: fromVal, yOffset: 0 };
+                
+                // Sequence:
+                // 1. Jump up (val stays roughly same or interpolates? Let's interpolate val)
+                // 2. Hit peak (val reaches near target?)
+                // 3. Fall down (val settles)
+                
+                // To simulate "hitting a block", maybe fast up, hard stop, then bounce down?
+                // Or standard jump: fast up, slow at top, accelerate down.
+                
+                // Let's use a Timeline for precise control
+                const bumpTl = gsap.timeline({
+                    onUpdate: () => {
+                        const currentVal = proxy.val;
+                        // Update Data
+                        pt.dataset.val = String(currentVal);
+                        if (d) d.val = currentVal;
+                        if (label) {
+                            label.dataset.val = String(currentVal);
+                            label.textContent = String(Math.round(currentVal));
+                        }
+                        
+                        // Update Visual Position
+                        // We need to re-calculate X/Y because updateChartGeometry might be running?
+                        // Actually updateChartGeometry reads d.val, so if we update d.val, it will move.
+                        // BUT we want an EXTRA offset (the jump).
+                        
+                        // Let's rely on updateChartGeometry for the base position (based on proxy.val)
+                        // And manually apply an extra translate if needed?
+                        // No, simpler: stop updateChartGeometry from interfering? 
+                        // Or just let updateChartGeometry handle the base position, and we add a jump offset?
+                        // updateChartGeometry sets 'transform'. If we change it here, it might be overwritten.
+                        // Ideally, we update d.val (so base moves) AND add a "jump" offset.
+                        
+                        // However, updateChartGeometry runs on gsap.ticker (via main timeline onUpdate).
+                        // If we modify d.val, the point moves to the new Y.
+                        // We want it to go HIGHER than the new Y temporarily.
+                        
+                        // Let's assume updateChartGeometry handles the base x/y from d.val.
+                        // We will add a temporary "y-bump" via a separate transform or by tricking d.val?
+                        // Tricking d.val is bad because label would show wrong number.
+                        
+                        // Better: Modify the DOM element directly and hope updateChartGeometry doesn't overwrite it instantly?
+                        // updateChartGeometry runs every frame. It sets transform attribute.
+                        // We should integrate the bump into the position logic or pause updateChartGeometry?
+                        // No, let's just use a separate "jump" property on the element that updateChartGeometry respects?
+                        // Or simpler: We are in a controlled sequence.
+                        
+                        // Let's use a "visualYOffset" variable that updateChartGeometry checks?
+                        // Or just force set attribute here, knowing it might fight?
+                        // The main TL calls updateChartGeometry.
+                        
+                        // Let's try to animate 'val' to target, AND add a particle explosion at the peak.
+                    }
+                });
+
+                // Phase 1: Jump Up + Value Change
+                // Go to target value + overshoot value?
+                // If we want to simulate "bump", we can make the value overshoot?
+                // e.g. target is 200,000. We go to 205,000 then back to 200,000?
+                // This is the easiest way to get the visual "jump" without fighting the renderer.
+                
+                // Value overshoot amount (in data units)
+                // 30px roughly equals how much value?
+                const pixelToDataRatio = (config.yMax - (config.yMin||0)) / (config.svgHeight - config.margin.top - config.margin.bottom);
+                const overshootVal = bumpHeight * pixelToDataRatio;
+                
+                const peakVal = toVal + overshootVal;
+                
+                // 1. Fast Up to Peak
+                bumpTl.to(proxy, {
+                    val: peakVal,
+                    duration: 0.25,
+                    ease: "power2.out",
+                    onComplete: () => {
+                        // Trigger Particles at Peak
+                         const cx = xScale(n);
+                         // Peak Y is based on peakVal
+                         const cy = yScale(peakVal);
+                         emitBumpParticles(cx, cy);
+                    }
+                });
+                
+                // 2. Bounce Down to Target
+                bumpTl.to(proxy, {
+                    val: toVal,
+                    duration: 0.4,
+                    ease: "bounce.out"
+                });
+
+            }
+        };
+
+        cameraMode = "locked";
+        camera.x = 0;
+        camera.y = 0;
+        camera.scale = 1;
+        applyCamera();
+
+        const startN = data[0].n;
+        const endN = data[data.length - 1].n;
+
+        const holdDur = 0.9;
+        const stepDur = 0.55;
+
+        tl.to({}, { duration: holdDur }, "start");
+
+        for (let i = startN; i <= endN; i++) {
+            tl.call(() => morphToStar(i), [], `start+=${holdDur + (i - startN) * stepDur}`);
+        }
+
+        tl.addLabel("starsComplete", `start+=${holdDur + (endN - startN + 1) * stepDur}`);
+        tl.to({}, { duration: 3.0 }, "starsComplete");
+        return;
+    }
+
     if (config.cameraEnabled) {
         // --- Enhanced Camera Logic ---
         const axisBaselineY = config.svgHeight - config.margin.bottom;
@@ -1040,7 +1208,7 @@ function startAnimation() {
          * 根据当前X轴显示终点给镜头一个水平锚点，保证初始阶段能看到坐标轴。
          */
         function getCameraAnchorX() {
-            const base = 4;
+            const base = config.minN ?? 0;
             const extent = getXAxisExtentN();
             const t = Math.max(0, Math.min(1, (extent - base) / 6));
             return 0.94 + (0.5 - 0.94) * t;
@@ -1099,11 +1267,13 @@ function startAnimation() {
             cameraMode = "locked";
         };
 
-        // 1. Initial State: Focus on n=4
-        const pFocus4 = framePointWithXAxis(4, 24);
-        camera.x = pFocus4.x;
-        camera.y = pFocus4.y;
-        camera.scale = pFocus4.scale;
+        // 1. Initial State: Focus on start
+        const startN = config.minN ?? data[0]?.n ?? 0;
+        const startV = data.find((d) => d.n === startN)?.val ?? data[0].val;
+        const pFocusStart = framePointWithXAxis(startN, startV);
+        camera.x = pFocusStart.x;
+        camera.y = pFocusStart.y;
+        camera.scale = pFocusStart.scale;
         applyCamera();
 
         // Difficulty Phase: Flicker on n=4
@@ -1577,8 +1747,7 @@ function startAnimation() {
     }
 
     // --- PREVIEW JUMP ---
-    // Jump to allPointsLit for previewing
-    tl.seek("allPointsLit");
+    tl.seek("starsComplete");
     
     // Force update camera to match the new time
     if (config.cameraEnabled) {

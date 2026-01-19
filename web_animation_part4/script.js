@@ -17,7 +17,7 @@ const config = {
     svgHeight: 1200, 
     margin: { top: 100, right: 120, bottom: 160, left: 180 }, // Increased margins for labels
     colors: {
-        green: "#2e7d32",
+        green: "var(--tech-green)",
         red: "#d32f2f",
         black: "#333333" 
     },
@@ -27,6 +27,7 @@ const config = {
     cameraEnabled: true,
     dataAlpha: 0,
     firstValueAlpha: 0,
+    greenifyN: 0,
     point4Flicker: 1,
     point9Flicker: 1,
     point13Flicker: 1,
@@ -48,12 +49,7 @@ const height = config.svgHeight - config.margin.top - config.margin.bottom;
 
 // Scales
 const getVisualN = (n) => {
-    const boundary = 14;
-    const compression = 0.35; // Compress 0-14 to 35%
-    if (n <= boundary) {
-        return n * compression;
-    }
-    return (boundary * compression) + (n - boundary);
+    return n;
 };
 
 const xScale = (n) => {
@@ -243,6 +239,10 @@ function updateChartGeometry() {
             else if (n === 11) opacity *= (1 - 0.55 * dim11);
             else opacity *= (1 - 0.55 * dim);
         }
+
+        const greenifyN = Number.isFinite(config.greenifyN) ? config.greenifyN : 0;
+        const isGreen = n <= greenifyN + 1e-6;
+        p.classList.toggle("is-green", isGreen);
         p.style.opacity = String(opacity);
     });
 
@@ -295,6 +295,11 @@ function updateChartGeometry() {
         }
         l.style.opacity = String(opacity);
         l.textContent = String(Math.round(val));
+
+        const greenifyN = Number.isFinite(config.greenifyN) ? config.greenifyN : 0;
+        const isGreen = n <= greenifyN + 1e-6;
+        l.classList.toggle("is-green", isGreen);
+
         if (config.specialGrowthEnabled && (n === 10 || n === 11)) {
             const growthTargetN = config.growthTargetN;
             const isGrowthTarget = growthTargetN == null || n === growthTargetN;
@@ -316,11 +321,13 @@ function updateChartGeometry() {
     // User didn't object to segments, so keeping them but updating logic
     
     const greenPath = svg.querySelector("#path-green");
+    const greenOverlayPath = svg.querySelector("#path-green-overlay");
     const blackMainPath = svg.querySelector("#path-black-main");
     const blackLastPath = svg.querySelector("#path-black-last");
 
     // Dynamic drawing: pass config.n to buildPathD
     if (greenPath) greenPath.setAttribute("d", buildPathD(segments.green, config.n));
+    if (greenOverlayPath) greenOverlayPath.setAttribute("d", buildPathD(segments.green, config.greenifyN ?? 0));
     if (blackMainPath) blackMainPath.setAttribute("d", buildPathD(segments.blackMain, config.n));
     if (blackLastPath) blackLastPath.setAttribute("d", buildPathD(segments.blackLast, config.n));
 }
@@ -658,7 +665,7 @@ function drawGrid() {
     });
 
     // Vertical Grid lines (0..24)
-    for (let i = 0; i <= 24; i++) {
+    for (let i = 0; i <= config.maxN; i++) {
         const x = xScale(i);
         const yTop = config.margin.top;
         const yBottom = config.svgHeight - config.margin.bottom;
@@ -677,7 +684,7 @@ function drawGrid() {
 
 function drawAxesTicks() {
     // X-Axis Ticks
-    for (let i = 0; i <= 24; i++) {
+    for (let i = 0; i <= config.maxN; i++) {
         const x = xScale(i);
         const y = config.svgHeight - config.margin.bottom;
         
@@ -704,7 +711,7 @@ function prepareDataElements() {
     ensureSvgDefs();
     ensureCameraGroup();
 
-    ["path-green", "path-black-main", "path-black-last"].forEach((id) => {
+    ["path-green", "path-green-overlay", "path-black-main", "path-black-last"].forEach((id) => {
         const existing = svg.querySelector(`#${id}`);
         if (existing) existing.remove();
     });
@@ -737,6 +744,14 @@ function prepareDataElements() {
     blackLastPath.setAttribute("stroke-width", "3.5");
     blackLastPath.setAttribute("id", "path-black-last");
     pointsGroup.parentNode.insertBefore(blackLastPath, pointsGroup);
+
+    const greenOverlayPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    greenOverlayPath.setAttribute("d", buildPathD(segments.green, 0));
+    greenOverlayPath.setAttribute("class", "data-line non-scaling");
+    greenOverlayPath.setAttribute("fill", "none");
+    greenOverlayPath.setAttribute("stroke-width", "4.5");
+    greenOverlayPath.setAttribute("id", "path-green-overlay");
+    pointsGroup.parentNode.insertBefore(greenOverlayPath, pointsGroup);
     
     // Hide original single path
     linePath.style.display = "none";
@@ -750,17 +765,12 @@ function prepareDataElements() {
         let r = 14;
         let labelColor = config.colors.black;
         let labelWeight = "normal";
-        let labelSize = "36px"; // Standard size for >= 14
-
-        if (d.n < 14) {
-            labelSize = "20px"; // Smaller for historical data
-        }
+        let labelSize = "20px";
 
         if (d.n === 14) {
             color = config.colors.red;
             labelColor = config.colors.red;
             labelWeight = "normal";
-            labelSize = "48px"; // Highlight size for breakthrough
             r = 14;
         }
 
@@ -884,6 +894,7 @@ function startAnimation() {
     config.dataVisible = true;
     config.dataAlpha = 1;
     config.firstValueAlpha = 1;
+    config.greenifyN = 0;
     config.point4Flicker = 1;
     config.point9Flicker = 1;
     config.point13Flicker = 1;
@@ -1133,139 +1144,28 @@ function startAnimation() {
         // Move to 14 and adjust yMax to fit 1932
         tl.to(config, { n: 14, yMax: 2200, duration: 1.6, ease: "linear" }, ">");
         tl.call(() => stepPulse(14), [], ">-0.1");
-
-        // 14 Particle Explosion Effect
         tl.call(() => triggerParticleExplosion(14), [], ">");
-        
-    // 5. Rapid Growth Phase (15 -> 24)
-        // "Exciting, Shocking, Smooth Progress"
-        // Pause to build anticipation after explosion
-        tl.to({}, { duration: 1.5 }, ">");
 
-        const rapidStart = 15;
-        const rapidEnd = 24;
-        let lastIntN = 14;
+        tl.set(config, { greenifyN: 1 }, ">");
 
-        // One single smooth tween for silky movement
+        let lastPulseN = 14;
         tl.to(config, {
-            n: rapidEnd,
-            yMax: 260000, // 196560 * ~1.3
-            duration: 6.0, 
-            ease: "power2.inOut", // Smoother acceleration
+            n: 31,
+            yMax: 260000,
+            greenifyN: 31,
+            duration: 12.0,
+            ease: "power1.inOut",
             onStart: () => {
-                lastIntN = 14;
+                lastPulseN = 14;
             },
             onUpdate: () => {
                 const currentInt = Math.floor(config.n);
-                
-                // Calculate intensity based on progress (0 to 1)
-                const progress = (config.n - rapidStart) / (rapidEnd - rapidStart);
-                const intensity = Math.max(0, progress); // 0 -> 1
-
-                if (currentInt > lastIntN) {
-                    for (let k = lastIntN + 1; k <= currentInt; k++) {
-                        // Trigger pulse for k
-                        const pt = pointsGroup.querySelector(`g.data-point[data-n="${k}"]`);
-                        if (pt) {
-                            const halo = pt.querySelector('.data-point-halo');
-                            if (halo) {
-                                // Subtle pulses
-                                const pulseDur = 0.5;
-                                const maxR = 30 + (20 * intensity);
-                                
-                                gsap.fromTo(halo, 
-                                    { opacity: 0.5, attr: { r: 10 } },
-                                    { opacity: 0, attr: { r: maxR }, duration: pulseDur, ease: "power2.out" }
-                                );
-                            }
-                        }
-                    }
-                    lastIntN = currentInt;
+                if (currentInt > lastPulseN) {
+                    for (let k = lastPulseN + 1; k <= currentInt; k++) stepPulse(k);
+                    lastPulseN = currentInt;
                 }
             }
         }, ">");
-
-        // Climax at 24
-        tl.addLabel("climax24", ">");
-        tl.call(() => {
-             // Screen flash
-             const flashOverlay = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-             flashOverlay.setAttribute("x", -5000);
-             flashOverlay.setAttribute("y", -5000);
-             flashOverlay.setAttribute("width", 10000);
-             flashOverlay.setAttribute("height", 10000);
-             flashOverlay.setAttribute("fill", "white");
-             flashOverlay.setAttribute("opacity", 0.4);
-             // Ensure it's on top
-             svg.appendChild(flashOverlay);
- 
-             gsap.to(flashOverlay, {
-                 opacity: 0,
-                 duration: 1.2,
-                 ease: "power2.out",
-                 onComplete: () => flashOverlay.remove()
-             });
-
-            // Trigger particle explosion for 24
-            triggerParticleExplosion(24);
-        }, [], "climax24");
-
-        // Dampen shake quickly
-        tl.to(config, { shakeIntensity: 0, duration: 1.0 }, "climax24");
-
-        tl.to({}, { duration: 1.0 }, "climax24");
-
-        // 6. Final Wave: Zoom out and ripple
-        // "Finally, all nodes light up once from left to right"
-        tl.addLabel("finalWave", ">");
-        
-        // Switch camera mode to allow manual control (disable follow)
-        tl.call(() => {
-            cameraMode = "overview";
-        }, [], "finalWave");
-
-        // Zoom out to full view to show all nodes
-        if (config.cameraEnabled) {
-            tl.to(camera, {
-                x: 0,
-                y: 0,
-                scale: 1,
-                duration: 2.5,
-                ease: "power2.inOut"
-            }, "finalWave");
-        }
-
-        // Ripple from 1 to 24
-        // Start slightly after zoom starts so it's visible as we pull back
-        const waveStart = 0.5; 
-        const waveStep = 0.08; // Fast ripple
-
-        for (let i = 1; i <= 24; i++) {
-            tl.call(() => {
-                const pt = pointsGroup.querySelector(`g.data-point[data-n="${i}"]`);
-                if (pt) {
-                    const halo = pt.querySelector('.data-point-halo');
-                    const ring = pt.querySelector('.data-point-ring');
-                    
-                    // Use a subtle pulse for the final review
-                    if (halo) {
-                         gsap.fromTo(halo, 
-                            { opacity: 0.6, attr: { r: 10 } },
-                            { opacity: 0, attr: { r: 40 }, duration: 0.8, ease: "power2.out" }
-                        );
-                    }
-                    if (ring) {
-                         gsap.fromTo(ring,
-                            { stroke: "white", "stroke-width": 2, opacity: 0.8 },
-                            { "stroke-width": 0, opacity: 0, duration: 0.5, attr: { r: 30 } }
-                         );
-                    }
-                }
-            }, [], `finalWave+=${waveStart + i * waveStep}`);
-        }
-        
-        // Final contemplation hold
-        tl.to({}, { duration: 4.0 });
 
     } else {
         // Fallback
