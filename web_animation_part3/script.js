@@ -3,7 +3,10 @@ const data = [
     { n: 1, val: 2 },
     { n: 2, val: 6 }, { n: 3, val: 12 }, { n: 4, val: 24 }, { n: 5, val: 40 },
     { n: 6, val: 72 }, { n: 7, val: 126 }, { n: 8, val: 240 }, { n: 9, val: 306 },
-    { n: 10, val: 500 }, { n: 11, val: 582 }, { n: 12, val: 840 }, { n: 13, val: 1154 }
+    { n: 10, val: 500 }, { n: 11, val: 582 }, { n: 12, val: 840 }, { n: 13, val: 1154 },
+    { n: 14, val: 1932 }, { n: 15, val: 2564 }, { n: 16, val: 4320 }, { n: 17, val: 5730 },
+    { n: 18, val: 7654 }, { n: 19, val: 11692 }, { n: 20, val: 19448 },
+    { n: 21, val: 29768 }, { n: 22, val: 49896 }, { n: 23, val: 93150 }, { n: 24, val: 196560 }
 ];
 
 // Configuration
@@ -22,6 +25,7 @@ const config = {
     cameraEnabled: true,
     dataAlpha: 0,
     firstValueAlpha: 0,
+    greenifyN: 0,
     point4Flicker: 1,
     point9Flicker: 1,
     point13Flicker: 1,
@@ -50,10 +54,8 @@ const xScale = (n) => {
  * 获取X轴当前应显示到的维度终点（初始为4，随后随摄像机右移对应的n增长）。
  */
 function getXAxisExtentN() {
-    const base = 4;
     const max = config.maxN ?? 24;
-    const nNow = Number.isFinite(config.n) ? config.n : 0;
-    return Math.max(base, Math.min(max, nNow));
+    return max;
 }
 
 /**
@@ -227,6 +229,10 @@ function updateChartGeometry() {
             else if (n === 11) opacity *= (1 - 0.55 * dim11);
             else opacity *= (1 - 0.55 * dim);
         }
+
+        const greenifyN = Number.isFinite(config.greenifyN) ? config.greenifyN : 0;
+        const isGreen = n <= greenifyN + 1e-6;
+        p.classList.toggle("is-green", isGreen);
         p.style.opacity = String(opacity);
     });
 
@@ -278,6 +284,11 @@ function updateChartGeometry() {
         }
         l.style.opacity = String(opacity);
         l.textContent = String(Math.round(val));
+
+        const greenifyN = Number.isFinite(config.greenifyN) ? config.greenifyN : 0;
+        const isGreen = n <= greenifyN + 1e-6;
+        l.classList.toggle("is-green", isGreen);
+
         if (config.specialGrowthEnabled && (n === 10 || n === 11)) {
             const growthTargetN = config.growthTargetN;
             const isGrowthTarget = growthTargetN == null || n === growthTargetN;
@@ -299,11 +310,13 @@ function updateChartGeometry() {
     // User didn't object to segments, so keeping them but updating logic
     
     const greenPath = svg.querySelector("#path-green");
+    const greenOverlayPath = svg.querySelector("#path-green-overlay");
     const blackMainPath = svg.querySelector("#path-black-main");
     const blackLastPath = svg.querySelector("#path-black-last");
 
     // Dynamic drawing: pass config.n to buildPathD
     if (greenPath) greenPath.setAttribute("d", buildPathD(segments.green, config.n));
+    if (greenOverlayPath) greenOverlayPath.setAttribute("d", buildPathD(segments.green, Math.min(config.greenifyN ?? 0, config.n)));
     if (blackMainPath) blackMainPath.setAttribute("d", buildPathD(segments.blackMain, config.n));
     if (blackLastPath) blackLastPath.setAttribute("d", buildPathD(segments.blackLast, config.n));
 }
@@ -391,7 +404,7 @@ function ensureCameraGroup() {
     moveIntoCamera(pointsGroup);
     moveIntoCamera(labelsGroup);
 
-    ["path-green", "path-black-main", "path-black-last"].forEach((id) => {
+    ["path-green", "path-green-overlay", "path-black-main", "path-black-last"].forEach((id) => {
         const p = svg.querySelector(`#${id}`);
         if (!p) return;
         if (p.parentNode !== cameraGroup) cameraGroup.insertBefore(p, pointsGroup);
@@ -614,7 +627,7 @@ function prepareDataElements() {
     ensureSvgDefs();
     ensureCameraGroup();
 
-    ["path-green", "path-black-main", "path-black-last"].forEach((id) => {
+    ["path-green", "path-green-overlay", "path-black-main", "path-black-last"].forEach((id) => {
         const existing = svg.querySelector(`#${id}`);
         if (existing) existing.remove();
     });
@@ -629,6 +642,14 @@ function prepareDataElements() {
     greenPath.setAttribute("stroke-width", "3.5");
     greenPath.setAttribute("id", "path-green");
     pointsGroup.parentNode.insertBefore(greenPath, pointsGroup);
+
+    const greenOverlayPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    greenOverlayPath.setAttribute("d", buildPathD(segments.green, 0));
+    greenOverlayPath.setAttribute("class", "data-line non-scaling");
+    greenOverlayPath.setAttribute("fill", "none");
+    greenOverlayPath.setAttribute("stroke-width", "4.5");
+    greenOverlayPath.setAttribute("id", "path-green-overlay");
+    pointsGroup.parentNode.insertBefore(greenOverlayPath, pointsGroup);
 
     const blackMainPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
     blackMainPath.setAttribute("d", buildPathD(segments.blackMain));
@@ -739,10 +760,11 @@ function startAnimation() {
         cameraMode = "locked";
     };
     const applyCamera = () => {
-        cameraGroup.setAttribute(
-            "transform",
-            `matrix(${camera.scale} 0 0 ${camera.scale} ${camera.x} ${camera.y})`
-        );
+        // Force full view, ignore camera object
+        // cameraGroup.setAttribute(
+        //     "transform",
+        //     `matrix(${camera.scale} 0 0 ${camera.scale} ${camera.x} ${camera.y})`
+        // );
     };
     applyCamera();
 
@@ -784,8 +806,8 @@ function startAnimation() {
     };
 
     // Initial state
-    config.n = 4.0;
-    config.yMax = 30; // Close up on 4
+    config.n = 24.0;
+    config.yMax = 220000; // Full view
     config.axesVisible = true;
     config.dataVisible = true;
     config.dataAlpha = 1;
@@ -836,12 +858,12 @@ function startAnimation() {
     // Animation Sequence
     // 0. Axes Entrance (Lines appear first)
     // REMOVED for Part 2 - Start with axes visible
-    
-    tl.addLabel("start");
+    tl.addLabel("intro");
      
     // 0.5 Reveal Ticks (X and Y axis ticks fade in) - REMOVED (Handled above)
     // Removed config fade in logic
 
+    tl.addLabel("start", "intro+=1.8");
     tl.addLabel("phase1", "start");
 
     if (config.cameraEnabled) {
@@ -886,7 +908,7 @@ function startAnimation() {
             const dist = Math.abs(axisBaselineY - ty);
             const pad = config.svgHeight * 0.18;
             const usable = Math.max(200, config.svgHeight - pad * 2);
-            const s = Math.max(1, Math.min(3.5, usable / (dist + 240)));
+            const s = Math.max(0.1, Math.min(3.5, usable / (dist + 240)));
             const targetY = ty * 0.4 + axisBaselineY * 0.6;
             return centerOnXY(tx, targetY, s, getCameraAnchorX(), 0.62);
         };
@@ -911,14 +933,16 @@ function startAnimation() {
             cameraMode = "locked";
         };
 
-        // 1. Initial State: Focus on n=4
-        const pFocus4 = framePointWithXAxis(4, 24);
-        camera.x = pFocus4.x;
-        camera.y = pFocus4.y;
-        camera.scale = pFocus4.scale;
-        applyCamera();
+        const pFocus24 = framePointWithXAxis(24, 196560);
+        // tl.to(camera, { x: pFocus24.x, y: pFocus24.y, scale: pFocus24.scale, duration: 1.0, ease: "sine.inOut" }, "intro+=0.8");
 
         // Difficulty Phase: Flicker on n=4
+        tl.to(config, {
+            greenifyN: 4,
+            duration: 2.5,
+            ease: "linear"
+        }, "start");
+
         tl.to(config, {
             point4Flicker: 0.25,
             duration: 0.08,
@@ -927,6 +951,7 @@ function startAnimation() {
             ease: "steps(1)"
         }, "start");
         tl.set(config, { point4Flicker: 1 }, "breakthrough");
+        // tl.set(config, { greenifyN: 24 }, "breakthrough"); // REMOVED: Animate greenifyN instead
         
         tl.addLabel("breakthrough", "start+=2.5");
         
@@ -962,29 +987,30 @@ function startAnimation() {
         // 2. Breakthrough at 4
         tl.call(() => stepPulse(4), [], "breakthrough");
         
-        // 3. Step by step growth
+        // 3. Step by step growth (Converted to Greenify Animation)
+        
         const stepDur = 2.0;
 
         // n=4 to 5
-        tl.to(config, { n: 5, yMax: 50, duration: stepDur, ease: "linear" }, "breakthrough+=0.5");
+        tl.to(config, { greenifyN: 5, duration: stepDur, ease: "linear" }, "breakthrough+=0.5");
         tl.call(() => stepPulse(5), [], ">-0.1"); // Trigger pulse just before end of move
 
         // n=5 to 6
-        tl.to(config, { n: 6, yMax: 90, duration: stepDur, ease: "linear" }, ">");
+        tl.to(config, { greenifyN: 6, duration: stepDur, ease: "linear" }, ">");
         tl.call(() => stepPulse(6), [], ">-0.1");
 
         // n=6 to 7
-        tl.to(config, { n: 7, yMax: 160, duration: stepDur, ease: "linear" }, ">");
+        tl.to(config, { greenifyN: 7, duration: stepDur, ease: "linear" }, ">");
         tl.call(() => stepPulse(7), [], ">-0.1");
 
         // n=7 to 8
-        tl.to(config, { n: 8, yMax: 300, duration: stepDur, ease: "linear" }, ">");
+        tl.to(config, { greenifyN: 8, duration: stepDur, ease: "linear" }, ">");
         tl.call(() => stepPulse(8), [], ">-0.1");
         tl.to({}, { duration: 2.4 }, ">");
 
         // n=8 to 9 (new stall)
         const stepDur2 = 1.8;
-        tl.to(config, { n: 9, yMax: 340, duration: stepDur2, ease: "linear" }, ">");
+        tl.to(config, { greenifyN: 9, duration: stepDur2, ease: "linear" }, ">");
         tl.call(() => stepPulse(9), [], ">-0.1");
         tl.addLabel("captureStart9", ">");
         tl.to(config, {
@@ -1013,19 +1039,19 @@ function startAnimation() {
         }, [], ">");
 
         // 9 -> 10
-        tl.to(config, { n: 10, yMax: 600, duration: stepDur3, ease: "linear" }, ">");
+        tl.to(config, { greenifyN: 10, duration: stepDur3, ease: "linear" }, ">");
         tl.call(() => stepPulse(10), [], ">-0.1");
 
         // 10 -> 11
-        tl.to(config, { n: 11, yMax: 680, duration: stepDur3, ease: "linear" }, ">");
+        tl.to(config, { greenifyN: 11, duration: stepDur3, ease: "linear" }, ">");
         tl.call(() => stepPulse(11), [], ">-0.1");
 
         // 11 -> 12
-        tl.to(config, { n: 12, yMax: 950, duration: stepDur3, ease: "linear" }, ">");
+        tl.to(config, { greenifyN: 12, duration: stepDur3, ease: "linear" }, ">");
         tl.call(() => stepPulse(12), [], ">-0.1");
 
         // 12 -> 13
-        tl.to(config, { n: 13, yMax: 1400, duration: stepDur3, ease: "linear" }, ">");
+        tl.to(config, { greenifyN: 13, duration: stepDur3, ease: "linear" }, ">");
         tl.call(() => stepPulse(13), [], ">-0.1");
 
         // 13维闪烁，同时继续向右平移并让X轴生长（n推进到24）
@@ -1038,20 +1064,20 @@ function startAnimation() {
         }, ">");
 
         tl.to(config, {
-            n: 24,
+            greenifyN: 24,
             duration: 12.0,
             ease: "linear"
         }, ">");
 
-        tl.to(camera, {
-            x: "-=450",
-            duration: 12.0,
-            ease: "sine.inOut"
-        }, "<");
+        // tl.to(camera, {
+        //     x: "-=450",
+        //     duration: 12.0,
+        //     ease: "sine.inOut"
+        // }, "<");
 
     } else {
         // Fallback
-        tl.to(config, { n: 8, yMax: 300, duration: 8, ease: "linear" }, "breakthrough");
+        // tl.to(config, { n: 8, yMax: 300, duration: 8, ease: "linear" }, "breakthrough");
     }
 
     if (config.enableFinalPhase) {
@@ -1141,6 +1167,7 @@ function startAnimation() {
 
 // Run
 window.addEventListener('load', () => {
+    document.body.classList.add("dark-mode");
     initChart();
     
     // Toggle Mode

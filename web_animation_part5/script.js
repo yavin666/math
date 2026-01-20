@@ -1263,11 +1263,11 @@ function startAnimation() {
                 
                 const peakVal = toVal + overshootVal;
                 
-                // 1. Fast Up to Peak + Scale Up
+                // 1. Slow Up to Peak + Scale Up
                 bumpTl.to(proxy, {
                     val: peakVal,
                     scale: 1.5, // Scale up during jump
-                    duration: 0.25,
+                    duration: 1.2,
                     ease: "power2.out",
                     onComplete: () => {
                         // Trigger Particles at Peak
@@ -1278,12 +1278,12 @@ function startAnimation() {
                     }
                 });
                 
-                // 2. Bounce Down to Target + Scale Back
+                // 2. Gentle Bounce Down to Target + Scale Back
                 bumpTl.to(proxy, {
                     val: toVal,
                     scale: 1, // Return to normal scale
-                    duration: 0.4,
-                    ease: "bounce.out"
+                    duration: 0.6,
+                    ease: "power2.out"
                 });
 
             }
@@ -1299,12 +1299,14 @@ function startAnimation() {
         const endN = data[data.length - 1].n;
 
         const holdDur = 0.9;
-        const stepDur = 0.55;
+        const stepDur = 1.8; // 每个数字增长动画持续约1.8秒
+        const overlapDur = 0.9; // 下一个动画提前0.9秒开始，形成交叠
 
         tl.to({}, { duration: holdDur }, "start");
 
         for (let i = startN; i <= endN; i++) {
-            tl.call(() => morphToStar(i), [], `start+=${holdDur + (i - startN) * stepDur}`);
+            const startTime = holdDur + (i - startN) * (stepDur - overlapDur);
+            tl.call(() => morphToStar(i), [], `start+=${startTime}`);
         }
 
         tl.addLabel("starsComplete", `start+=${holdDur + (endN - startN + 1) * stepDur}`);
@@ -1685,7 +1687,7 @@ function startAnimation() {
         // 2. Reveal 25-31 (Stars)
         const starStartN = 25;
         const starEndN = 31;
-        const starStepDur = 0.35; // Shortened interval for silkier sequence
+        const starStepDur = 0.15; // Even faster for a rhythmic cascade
 
         for (let i = starStartN; i <= starEndN; i++) {
              const labelTime = `starReveal${i}`;
@@ -1697,7 +1699,8 @@ function startAnimation() {
              // NOTE: config.n controls the line drawing.
              // Since axis is already at 31 (via minAxisN), increasing config.n won't shift the axis,
              // it will just draw the line further to the right.
-             tl.to(config, { n: i, yMax: data.find(d => d.n === i).val * 1.1, duration: starStepDur, ease: "power2.out" }, labelTime);
+             // Use a slightly longer duration than the step to allow smooth overlap of line drawing
+             tl.to(config, { n: i, yMax: data.find(d => d.n === i).val * 1.1, duration: starStepDur * 1.5, ease: "power2.out" }, labelTime);
              
             tl.call(() => {
                 const pt = pointsGroup.querySelector(`g.data-point[data-n="${i}"]`);

@@ -66,14 +66,14 @@ const path = require('path');
             return { duration, startTime };
         });
 
-        const fps = 120;
+        const fps = 60; // Changed from 120 to 60 to match standard web refresh rate
         const totalFrames = Math.ceil(timing.duration * fps);
         const startFrame = Math.floor(timing.startTime * fps);
 
         console.log(
             `[${name}] Animation duration: ${timing.duration}s, ` +
             `capture from t=${timing.startTime}s (frame ${startFrame}), ` +
-            `Total frames: ${totalFrames - startFrame + 1}`
+            `Total frames: ${totalFrames - startFrame + 1} (FPS: ${fps})`
         );
 
         for (let i = startFrame; i <= totalFrames; i++) {

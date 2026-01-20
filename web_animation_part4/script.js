@@ -27,7 +27,7 @@ const config = {
     cameraEnabled: true,
     dataAlpha: 0,
     firstValueAlpha: 0,
-    greenifyN: 0,
+    greenifyN: 31,
     point4Flicker: 1,
     point9Flicker: 1,
     point13Flicker: 1,
@@ -327,7 +327,7 @@ function updateChartGeometry() {
 
     // Dynamic drawing: pass config.n to buildPathD
     if (greenPath) greenPath.setAttribute("d", buildPathD(segments.green, config.n));
-    if (greenOverlayPath) greenOverlayPath.setAttribute("d", buildPathD(segments.green, config.greenifyN ?? 0));
+    if (greenOverlayPath) greenOverlayPath.setAttribute("d", buildPathD(segments.green, Math.min(config.greenifyN ?? 0, config.n)));
     if (blackMainPath) blackMainPath.setAttribute("d", buildPathD(segments.blackMain, config.n));
     if (blackLastPath) blackLastPath.setAttribute("d", buildPathD(segments.blackLast, config.n));
 }
@@ -914,7 +914,7 @@ function startAnimation() {
     config.dataVisible = true;
     config.dataAlpha = 1;
     config.firstValueAlpha = 1;
-    config.greenifyN = 0;
+    config.greenifyN = 31;
     config.point4Flicker = 1;
     config.point9Flicker = 1;
     config.point13Flicker = 1;
@@ -1166,7 +1166,7 @@ function startAnimation() {
         tl.call(() => stepPulse(14), [], ">-0.1");
         tl.call(() => triggerParticleExplosion(14), [], ">");
 
-        tl.set(config, { greenifyN: 1 }, ">");
+        // tl.set(config, { greenifyN: 31 }, ">"); // Removed as it is already 31
 
         let lastPulseN = 14;
         tl.to(config, {
