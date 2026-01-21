@@ -10,7 +10,7 @@ const config = {
     svgHeight: 1200, 
     margin: { top: 200, right: 220, bottom: 260, left: 320 }, // Increased margins for labels
     colors: {
-        green: "#2e7d32",
+        green: "#00ff8a",
         red: "#d32f2f",
         black: "#333333" 
     },
@@ -121,7 +121,6 @@ const createStarPath = (r) => {
 const create3DGoldStarGroup = (r) => {
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     
-    // 5 points, 3D faceted look with Warm/Gold tones
     for (let i = 0; i < 5; i++) {
         const angle = (Math.PI * 2 * i) / 5 - Math.PI / 2;
         const angleInner = angle + Math.PI / 5;
@@ -137,27 +136,28 @@ const create3DGoldStarGroup = (r) => {
         const innerPrevX = Math.cos(angleInnerPrev) * rInner;
         const innerPrevY = Math.sin(angleInnerPrev) * rInner;
 
-        // Left Face (Shadow/Warm Gold)
         const pLeft = document.createElementNS("http://www.w3.org/2000/svg", "path");
         pLeft.setAttribute("d", `M 0 0 L ${innerPrevX} ${innerPrevY} L ${outerX} ${outerY} Z`);
-        pLeft.setAttribute("fill", "#f5deb3"); // Wheat (Warm Shadow)
-        pLeft.setAttribute("stroke", "none");
+        pLeft.setAttribute("fill", "#c9d1d9");
+        pLeft.setAttribute("fill-opacity", "0.75");
+        pLeft.setAttribute("stroke", "#d0d7de");
+        pLeft.setAttribute("stroke-width", "0.6");
         g.appendChild(pLeft);
 
-        // Right Face (Highlight/Ivory)
         const pRight = document.createElementNS("http://www.w3.org/2000/svg", "path");
         pRight.setAttribute("d", `M 0 0 L ${outerX} ${outerY} L ${innerX} ${innerY} Z`);
-        pRight.setAttribute("fill", "#fffbf0"); // Warm White (Highlight)
-        pRight.setAttribute("stroke", "none");
+        pRight.setAttribute("fill", "#f0f6fc");
+        pRight.setAttribute("fill-opacity", "0.9");
+        pRight.setAttribute("stroke", "#d0d7de");
+        pRight.setAttribute("stroke-width", "0.4");
         g.appendChild(pRight);
     }
     
-    // Central Glow (Core)
     const core = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     core.setAttribute("cx", "0");
     core.setAttribute("cy", "0");
     core.setAttribute("r", String(r * 0.25));
-    core.setAttribute("fill", "url(#star-glass-gradient)"); // Use the nice gradient for the core
+    core.setAttribute("fill", "url(#star-glass-gradient)");
     core.setAttribute("opacity", "0.8");
     g.appendChild(core);
 
@@ -652,31 +652,31 @@ function ensureSvgDefs() {
         defs.appendChild(blackGrad);
     }
 
-    if (!defs.querySelector("#star-glass-gradient")) {
-        const starGrad = document.createElementNS("http://www.w3.org/2000/svg", "radialGradient");
-        starGrad.setAttribute("id", "star-glass-gradient");
+    {
+        let starGrad = defs.querySelector("#star-glass-gradient");
+        if (!starGrad) {
+            starGrad = document.createElementNS("http://www.w3.org/2000/svg", "radialGradient");
+            starGrad.setAttribute("id", "star-glass-gradient");
+            defs.appendChild(starGrad);
+        }
         starGrad.setAttribute("cx", "50%");
         starGrad.setAttribute("cy", "50%");
         starGrad.setAttribute("r", "50%");
         starGrad.setAttribute("fx", "50%");
         starGrad.setAttribute("fy", "50%");
-
+        while (starGrad.firstChild) starGrad.removeChild(starGrad.firstChild);
         const s1 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
         s1.setAttribute("offset", "0%");
-        s1.setAttribute("stop-color", "#fffbf0"); // Warm white center
+        s1.setAttribute("stop-color", "#ffffff");
         starGrad.appendChild(s1);
-
         const s2 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
-        s2.setAttribute("offset", "40%");
-        s2.setAttribute("stop-color", "#ffefd5"); // Papaya Whip (soft peach)
+        s2.setAttribute("offset", "45%");
+        s2.setAttribute("stop-color", "#e6edf3");
         starGrad.appendChild(s2);
-
         const s3 = document.createElementNS("http://www.w3.org/2000/svg", "stop");
         s3.setAttribute("offset", "100%");
-        s3.setAttribute("stop-color", "#f5deb3"); // Wheat/Gold edge
+        s3.setAttribute("stop-color", "#c0c0c0");
         starGrad.appendChild(s3);
-
-        defs.appendChild(starGrad);
     }
 
     // Semi-transparent background filter for labels
@@ -706,20 +706,24 @@ function ensureSvgDefs() {
         defs.appendChild(filter);
     }
 
-    if (!defs.querySelector("#glow-blur")) {
-        const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
-        filter.setAttribute("id", "glow-blur");
+    {
+        let filter = defs.querySelector("#glow-blur");
+        if (!filter) {
+            filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+            filter.setAttribute("id", "glow-blur");
+            defs.appendChild(filter);
+        }
         filter.setAttribute("x", "-50%");
         filter.setAttribute("y", "-50%");
         filter.setAttribute("width", "200%");
         filter.setAttribute("height", "200%");
-        
-        const blur = document.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+        let blur = filter.querySelector("feGaussianBlur");
+        if (!blur) {
+            blur = document.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
+            filter.appendChild(blur);
+        }
         blur.setAttribute("in", "SourceGraphic");
-        blur.setAttribute("stdDeviation", "3");
-        filter.appendChild(blur);
-        
-        defs.appendChild(filter);
+        blur.setAttribute("stdDeviation", "6");
     }
 }
 
@@ -953,17 +957,17 @@ function prepareDataElements() {
 
         if (d.n >= 25) {
             const starHalo = document.createElementNS("http://www.w3.org/2000/svg", "path");
-            starHalo.setAttribute("d", createStarPath(r * 1.8)); // Use new shape for halo
+            starHalo.setAttribute("d", createStarPath(r * 2.1));
             starHalo.setAttribute("fill", "none");
-            starHalo.setAttribute("stroke", "gold");
-            starHalo.setAttribute("stroke-width", "4"); // Thinner stroke for elegance
+            starHalo.setAttribute("stroke", "#e6edf3");
+            starHalo.setAttribute("stroke-width", "4");
             starHalo.setAttribute("stroke-linejoin", "round");
             starHalo.setAttribute("opacity", "0");
             starHalo.setAttribute("filter", "url(#glow-blur)");
             starHalo.classList.add("star-halo");
             g.appendChild(starHalo);
 
-            const star = create3DGoldStarGroup(r * 1.8); // New 5-point Gold Star
+            const star = create3DGoldStarGroup(r * 1.8);
             star.setAttribute("opacity", "0");
             star.classList.add("data-point-star");
             star.classList.add("star-main");
@@ -1123,6 +1127,100 @@ function startAnimation() {
             29: 209496,
             30: 220440,
             31: 238078
+        };
+
+        const raiseNumber = (n) => {
+            const pt = pointsGroup.querySelector(`g.data-point[data-n="${n}"]`);
+            if (!pt) return;
+            const targetVal = raisedVals[n];
+            if (Number.isFinite(targetVal)) {
+                const d = data.find((x) => x.n === n);
+                const label = labelsGroup.querySelector(`text.point-label[data-n="${n}"]`);
+                const fromVal = parseFloat(pt.dataset.val || (d ? String(d.val) : "0"));
+                const toVal = Math.max(fromVal, targetVal);
+                const bumpHeight = 30;
+                const pixelToDataRatio = (config.yMax - (config.yMin||0)) / (config.svgHeight - config.margin.top - config.margin.bottom);
+                const overshootVal = bumpHeight * pixelToDataRatio;
+                const peakVal = toVal + overshootVal;
+                const proxy = { val: fromVal, yOffset: 0, scale: 1 };
+                const r = parseFloat(pt.dataset.targetRadius || "14");
+                let lastGhostTime = 0;
+                let ghostCount = 0;
+                const bumpTl = gsap.timeline({
+                    onUpdate: () => {
+                        const currentVal = proxy.val;
+                        const currentScale = proxy.scale;
+                        pt.dataset.val = String(currentVal);
+                        if (d) d.val = currentVal;
+                        if (label) {
+                            label.dataset.val = String(currentVal);
+                            label.textContent = String(Math.round(currentVal));
+                            const cx = parseFloat(label.getAttribute("x"));
+                            const cy = parseFloat(label.getAttribute("y"));
+                            label.setAttribute("transform", `translate(${cx} ${cy}) scale(${currentScale}) translate(${-cx} ${-cy})`);
+                        }
+                        const now = Date.now();
+                        if (now - lastGhostTime > 60 && ghostCount < 18) {
+                            lastGhostTime = now;
+                            ghostCount++;
+                            const gx = xScale(n);
+                            const gy = yScale(currentVal);
+                            const ghost = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                            ghost.setAttribute("cx", String(gx));
+                            ghost.setAttribute("cy", String(gy));
+                            ghost.setAttribute("r", String(Math.max(3, r * 0.55)));
+                            ghost.setAttribute("fill", "white");
+                            ghost.style.opacity = "0.28";
+                            ghost.setAttribute("filter", "url(#glow-blur)");
+                            particleGroup.appendChild(ghost);
+                            gsap.to(ghost, {
+                                opacity: 0,
+                                attr: { r: Math.max(3, r * 0.55) + 4 },
+                                duration: 0.6,
+                                ease: "sine.out",
+                                onComplete: () => ghost.remove()
+                            });
+                        }
+                    }
+                });
+                bumpTl.to(proxy, {
+                    val: peakVal,
+                    scale: 1.5,
+                    duration: 1.2,
+                    ease: "power2.out"
+                });
+                bumpTl.to(proxy, {
+                    val: toVal,
+                    scale: 1,
+                    duration: 0.6,
+                    ease: "power2.out"
+                });
+            }
+        };
+
+        const starify = (n) => {
+            const pt = pointsGroup.querySelector(`g.data-point[data-n="${n}"]`);
+            if (!pt) return;
+            if (pt.classList.contains("star-point")) return;
+            pt.classList.add("star-point");
+            const ring = pt.querySelector(".data-point-ring");
+            const halo = pt.querySelector(".data-point-halo");
+            const core = pt.querySelector(".data-point-core");
+            const starHalo = pt.querySelector(".star-halo");
+            const star = pt.querySelector(".star-main");
+            const r = parseFloat(pt.dataset.targetRadius || "14");
+            if (core) gsap.to(core, { attr: { r: Math.max(2, r * 0.2) }, duration: 0.22, ease: "power1.out" });
+            if (ring) gsap.to(ring, { opacity: 0, duration: 0.18, ease: "power1.out" });
+            if (halo) gsap.to(halo, { opacity: 0, duration: 0.18, ease: "power1.out" });
+            if (starHalo) {
+                const glowTl = gsap.timeline();
+                glowTl.set(starHalo, { scale: 1.06 });
+                glowTl.to(starHalo, { opacity: 0.6, duration: 0.16, ease: "power1.out" })
+                      .to(starHalo, { opacity: 0.32, duration: 0.28, ease: "sine.out" });
+            }
+            if (star) {
+                gsap.fromTo(star, { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1, duration: 0.25, ease: "power1.out" });
+            }
         };
 
         const morphToStar = (n) => {
@@ -1306,10 +1404,17 @@ function startAnimation() {
 
         for (let i = startN; i <= endN; i++) {
             const startTime = holdDur + (i - startN) * (stepDur - overlapDur);
-            tl.call(() => morphToStar(i), [], `start+=${startTime}`);
+            tl.call(() => raiseNumber(i), [], `start+=${startTime}`);
         }
 
-        tl.addLabel("starsComplete", `start+=${holdDur + (endN - startN + 1) * stepDur}`);
+        const growthEnd = holdDur + (endN - startN) * (stepDur - overlapDur) + stepDur;
+        const starStepDur = 0.12;
+        for (let i = startN; i <= endN; i++) {
+            const startTime = growthEnd + (i - startN) * starStepDur;
+            tl.call(() => starify(i), [], `start+=${startTime}`);
+        }
+
+        tl.addLabel("starsComplete", `start+=${growthEnd + (endN - startN + 1) * starStepDur}`);
         tl.to({}, { duration: 3.0 }, "starsComplete");
         return;
     }
@@ -1510,8 +1615,7 @@ function startAnimation() {
         tl.to(config, { n: 14, yMax: 2200, duration: 1.6, ease: "linear" }, ">");
         tl.call(() => stepPulse(14), [], ">-0.1");
 
-        // 14 Particle Explosion Effect
-        tl.call(() => triggerParticleExplosion(14), [], ">");
+        // 14 Particle Explosion Effect — removed
         
     // 5. Rapid Growth Phase (15 -> 24)
         // "Exciting, Shocking, Smooth Progress"
@@ -1687,7 +1791,7 @@ function startAnimation() {
         // 2. Reveal 25-31 (Stars)
         const starStartN = 25;
         const starEndN = 31;
-        const starStepDur = 0.15; // Even faster for a rhythmic cascade
+        const starStepDur = 0.12; // Quick, minimal cascade
 
         for (let i = starStartN; i <= starEndN; i++) {
              const labelTime = `starReveal${i}`;
@@ -1719,65 +1823,16 @@ function startAnimation() {
                 const halo = pt.querySelector(".star-halo");
                 const starShape = pt.querySelector(".star-main") || pt.querySelector(".data-point-star");
                 if (halo) {
-                    // Initial pop for halo
-                    gsap.fromTo(halo, 
-                        { opacity: 0, scale: 0.5 },
-                        { opacity: 0.9, scale: 1, duration: 0.6, ease: "back.out(1.5)" }
-                    );
-                    
-                    // Breathing loop
-                    gsap.to(halo, {
-                        opacity: 0.5,
-                        scale: 1.1,
-                        duration: 2.0,
-                        yoyo: true,
-                        repeat: -1,
-                        ease: "sine.inOut",
-                        delay: 0.6
-                    });
+                    const glowTl = gsap.timeline();
+                    glowTl.set(halo, { scale: 1.06 });
+                    glowTl.to(halo, { opacity: 0.6, duration: 0.16, ease: "power1.out" })
+                          .to(halo, { opacity: 0.32, duration: 0.28, ease: "sine.out" });
                 }
                 if (starShape) {
-                    // Exquisite pop-in animation
-                    gsap.fromTo(
-                        starShape,
-                        { opacity: 0, scale: 0.2, rotation: -45, transformOrigin: "50% 50%" },
-                        { opacity: 1, scale: 1, rotation: 0, duration: 0.8, ease: "elastic.out(1, 0.5)" }
-                    );
-                    
-                    // Gentle floating/breathing
-                    gsap.to(starShape, {
-                        scale: 1.1,
-                        rotation: 5,
-                        transformOrigin: "50% 50%",
-                        duration: 2.5,
-                        yoyo: true,
-                        repeat: -1,
-                        ease: "sine.inOut",
-                        delay: 0.8
-                    });
+                    gsap.fromTo(starShape, { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1, duration: 0.25, ease: "power1.out" });
                 }
 
-                const cx = xScale(i);
-                const cy = yScale(data.find(d => d.n === i).val);
-                
-                for (let k = 0; k < 12; k++) {
-                    const p = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-                    p.setAttribute("cx", cx);
-                    p.setAttribute("cy", cy);
-                    p.setAttribute("r", 0.6 + Math.random() * 1.0);
-                    p.setAttribute("fill", "rgba(255, 255, 255, 0.55)");
-                    particleGroup.appendChild(p);
-                    
-                    const angle = Math.random() * Math.PI * 2;
-                    const dist = 20 + Math.random() * 40;
-                    gsap.to(p, {
-                        attr: { cx: cx + Math.cos(angle) * dist, cy: cy + Math.sin(angle) * dist },
-                        opacity: 0,
-                        duration: 0.9 + Math.random() * 0.4,
-                        ease: "power2.out",
-                        onComplete: () => p.remove()
-                    });
-                }
+                // Remove local particle burst around stars
             }, [], labelTime);
         }
         

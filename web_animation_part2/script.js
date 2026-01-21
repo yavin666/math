@@ -219,7 +219,7 @@ function updateChartGeometry() {
         p.setAttribute("transform", `translate(${x} ${y}) scale(${tp * firstAlpha * emphasis})`);
         let opacity = tp * (config.dataAlpha ?? 1) * firstAlpha;
         if (n === 4) opacity *= (config.point4Flicker ?? 1);
-        if (n === 9) opacity *= (config.point9Flicker ?? 1);
+        if (n === 7) opacity *= (config.point9Flicker ?? 1);
         if (n === 14) opacity *= (config.point14Flicker ?? 1);
         const dim = config.focusDim ?? 0;
         const dim10 = config.focusDim10 ?? 0;
@@ -272,7 +272,7 @@ function updateChartGeometry() {
         const firstAlpha = n === 1 ? (config.firstValueAlpha ?? 1) : 1;
         let opacity = tl * (config.dataAlpha ?? 1) * firstAlpha;
         if (n === 4) opacity *= (config.point4Flicker ?? 1);
-        if (n === 9) opacity *= (config.point9Flicker ?? 1);
+        if (n === 7) opacity *= (config.point9Flicker ?? 1);
         if (n === 14) opacity *= (config.point14Flicker ?? 1);
         const dim = config.focusDim ?? 0;
         const dim10 = config.focusDim10 ?? 0;
@@ -618,9 +618,31 @@ function drawAxesTicks() {
     yTitle.textContent = "Kissing Number";
     axesGroup.appendChild(yTitle);
 
+    // X-Axis Title (Dimension (n)) - Integrated into SVG
+    const xTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    const xCenter = config.margin.left + (config.svgWidth - config.margin.left - config.margin.right) / 2;
+    const yPosLabel = config.svgHeight - config.margin.bottom + 140; // Below ticks
+
+    xTitle.setAttribute("x", xCenter);
+    xTitle.setAttribute("y", yPosLabel);
+    xTitle.setAttribute("text-anchor", "middle");
+    xTitle.style.fill = "var(--text-secondary)";
+    xTitle.style.fontSize = "32px";
+    xTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+    xTitle.textContent = "Dimension ";
+    
+    const tspan = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+    tspan.textContent = "(n)";
+    tspan.style.fontStyle = "italic";
+    xTitle.appendChild(tspan);
+    
+    axesGroup.appendChild(xTitle);
+
     // Remove old HTML label if it exists
-    const oldHtmlLabel = document.querySelector(".axis-label.y-label");
-    if (oldHtmlLabel) oldHtmlLabel.remove();
+    const oldHtmlLabelY = document.querySelector(".axis-label.y-label");
+    if (oldHtmlLabelY) oldHtmlLabelY.remove();
+    const oldHtmlLabelX = document.querySelector(".axis-label.x-label");
+    if (oldHtmlLabelX) oldHtmlLabelX.remove();
 }
 
 function prepareDataElements() {
@@ -1059,15 +1081,10 @@ function startAnimation() {
         tl.to(config, { greenifyN: 7, duration: stepDur, ease: "linear" }, ">");
         tl.call(() => stepPulse(7), [], ">-0.1");
 
-        // n=7 to 8
-        tl.to(config, { greenifyN: 8, duration: stepDur, ease: "linear" }, ">");
-        tl.call(() => stepPulse(8), [], ">-0.1");
-        tl.to({}, { duration: 0.5 }, ">"); // Reduced pause (was 2.4)
-
         // n=8 to 9 (new stall)
         const stepDur2 = 0.5; // Faster (was 1.8)
-        tl.to(config, { greenifyN: 9, duration: stepDur2, ease: "linear" }, ">");
-        tl.call(() => stepPulse(9), [], ">-0.1");
+        tl.to(config, { greenifyN: 7, duration: stepDur2, ease: "linear" }, ">");
+        tl.call(() => stepPulse(7), [], ">-0.1");
         tl.addLabel("captureStart9", ">");
         tl.to(config, {
             point9Flicker: 0.25,

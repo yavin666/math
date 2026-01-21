@@ -224,8 +224,7 @@ function updateChartGeometry() {
         const tpBase = Math.max(0, Math.min(1, (config.n - (n - leadPoint)) / leadPoint));
         let tp = (config.dataVisible ? tpBase : 0);
         
-        // Ghost logic for 13 and 14
-        const isGhost = (n === 13 || n === 14) && config.n < n;
+        const isGhost = (n >= 13 && n <= 24) && ((Number.isFinite(config.greenifyN) ? config.greenifyN : 0) < n);
         if (isGhost) {
             tp = 1;
         }
@@ -321,7 +320,12 @@ function updateChartGeometry() {
             else if (n === 11) opacity *= (1 - 0.55 * dim11);
             else opacity *= (1 - 0.55 * dim);
         }
-        l.style.opacity = String(opacity);
+        const isGhostLabel = (n >= 13 && n <= 24) && ((Number.isFinite(config.greenifyN) ? config.greenifyN : 0) < n);
+        if (isGhostLabel) {
+            l.style.opacity = "1";
+        } else {
+            l.style.opacity = String(opacity);
+        }
         l.textContent = String(Math.round(val));
 
         const greenifyN = Number.isFinite(config.greenifyN) ? config.greenifyN : 0;
@@ -361,11 +365,11 @@ function updateChartGeometry() {
     if (blackLastPath) blackLastPath.setAttribute("d", buildPathD(segments.blackLast, config.n));
 
     if (whiteGhostPath) {
-        const ghostData = segments.green.filter(d => d.n === 13 || d.n === 14);
-        const showGhost = (Number.isFinite(config.greenifyN) ? config.greenifyN < 14 : true);
+        const ghostData = segments.green.filter(d => d.n >= 13 && d.n <= 24);
+        const showGhost = (Number.isFinite(config.greenifyN) ? config.greenifyN < 24 : true);
         if (showGhost) {
             whiteGhostPath.style.display = "block";
-            whiteGhostPath.setAttribute("d", buildPathD(ghostData, 14));
+            whiteGhostPath.setAttribute("d", buildPathD(ghostData, 24));
         } else {
             whiteGhostPath.style.display = "none";
         }
@@ -670,7 +674,7 @@ function drawGrid() {
     // Horizontal Grid lines - Full range coverage for burst animation
     const yStepsMicro = [0, 100, 500];
     const yStepsSmall = [1000, 1500, 2000, 2500, 3000, 4000];
-    const yStepsLarge = [5000, 10000, 15000, 20000, 50000, 100000, 150000, 200000, 250000];
+    const yStepsLarge = [50000, 100000, 150000, 200000];
     const ySteps = [
         ...yStepsMicro.map((v) => ({ val: v, group: "micro" })),
         ...yStepsSmall.map((v) => ({ val: v, group: "small" })),
@@ -762,9 +766,31 @@ function drawAxesTicks() {
     yTitle.textContent = "Kissing Number";
     axesGroup.appendChild(yTitle);
 
+    // X-Axis Title (Dimension (n)) - Integrated into SVG
+    const xTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    const xCenter = config.margin.left + (config.svgWidth - config.margin.left - config.margin.right) / 2;
+    const yPosLabel = config.svgHeight - config.margin.bottom + 140; // Below ticks
+
+    xTitle.setAttribute("x", xCenter);
+    xTitle.setAttribute("y", yPosLabel);
+    xTitle.setAttribute("text-anchor", "middle");
+    xTitle.style.fill = "var(--text-secondary)";
+    xTitle.style.fontSize = "32px";
+    xTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+    xTitle.textContent = "Dimension ";
+    
+    const tspan = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+    tspan.textContent = "(n)";
+    tspan.style.fontStyle = "italic";
+    xTitle.appendChild(tspan);
+    
+    axesGroup.appendChild(xTitle);
+
     // Remove old HTML label if it exists
-    const oldHtmlLabel = document.querySelector(".axis-label.y-label");
-    if (oldHtmlLabel) oldHtmlLabel.remove();
+    const oldHtmlLabelY = document.querySelector(".axis-label.y-label");
+    if (oldHtmlLabelY) oldHtmlLabelY.remove();
+    const oldHtmlLabelX = document.querySelector(".axis-label.x-label");
+    if (oldHtmlLabelX) oldHtmlLabelX.remove();
 }
 
 function prepareDataElements() {
@@ -834,7 +860,7 @@ function prepareDataElements() {
         let r = 14;
         let labelColor = config.colors.black;
         let labelWeight = "normal";
-        let labelSize = "19px";
+        let labelSize = "32px";
 
         if (d.n === 14) {
             color = config.colors.red;
@@ -1138,8 +1164,7 @@ function startAnimation() {
         tl.set(config, { point13Flicker: 1 }, ">");
 
         // 13 -> 14 (Breakthrough)
-        // Move to 14 (config.n is already 14, but we need to trigger "arrival" effects)
-        // Let's simulate the arrival moment.
+        tl.to(config, { greenifyN: 14, duration: 0.6, ease: "linear" }, ">");
         tl.call(() => stepPulse(14), [], ">-0.1");
         tl.call(() => triggerParticleExplosion(14), [], ">");
 
