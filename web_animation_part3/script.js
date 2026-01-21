@@ -13,7 +13,7 @@ const data = [
 const config = {
     svgWidth: 2200, 
     svgHeight: 1200, 
-    margin: { top: 200, right: 220, bottom: 360, left: 320 }, // Increased margins for labels
+    margin: { top: 200, right: 220, bottom:200, left: 320 }, // Increased margins for labels
     colors: {
         green: "#2e7d32",
         red: "#d32f2f",
@@ -28,7 +28,7 @@ const config = {
     greenifyN: 0,
     point4Flicker: 1,
     point9Flicker: 1,
-    point13Flicker: 1,
+    point14Flicker: 1,
     specialGrowthEnabled: false,
     growthEmphasis: 0,
     focusDim: 0,
@@ -220,7 +220,7 @@ function updateChartGeometry() {
         let opacity = tp * (config.dataAlpha ?? 1) * firstAlpha;
         if (n === 4) opacity *= (config.point4Flicker ?? 1);
         if (n === 9) opacity *= (config.point9Flicker ?? 1);
-        if (n === 13) opacity *= (config.point13Flicker ?? 1);
+        if (n === 14) opacity *= (config.point14Flicker ?? 1);
         const dim = config.focusDim ?? 0;
         const dim10 = config.focusDim10 ?? 0;
         const dim11 = config.focusDim11 ?? 0;
@@ -273,7 +273,7 @@ function updateChartGeometry() {
         let opacity = tl * (config.dataAlpha ?? 1) * firstAlpha;
         if (n === 4) opacity *= (config.point4Flicker ?? 1);
         if (n === 9) opacity *= (config.point9Flicker ?? 1);
-        if (n === 13) opacity *= (config.point13Flicker ?? 1);
+        if (n === 14) opacity *= (config.point14Flicker ?? 1);
         const dim = config.focusDim ?? 0;
         const dim10 = config.focusDim10 ?? 0;
         const dim11 = config.focusDim11 ?? 0;
@@ -1054,20 +1054,27 @@ function startAnimation() {
         tl.to(config, { greenifyN: 13, duration: stepDur3, ease: "linear" }, ">");
         tl.call(() => stepPulse(13), [], ">-0.1");
 
-        // 13维闪烁，同时继续向右平移并让X轴生长（n推进到24）
+        // 13 -> 14
+        tl.to(config, { greenifyN: 14, duration: stepDur3, ease: "linear" }, ">");
+        tl.call(() => stepPulse(14), [], ">-0.1");
+
+        // 14维闪烁
         tl.to(config, {
-            point13Flicker: 0.25,
+            point13Flicker: 0.25, // Using existing flicker prop for simplicity or should add point14Flicker
             duration: 0.1,
             repeat: 80,
             yoyo: true,
             ease: "steps(1)"
         }, ">");
 
+        // 停止在14，不再继续向后点亮
+        /*
         tl.to(config, {
             greenifyN: 24,
             duration: 12.0,
             ease: "linear"
         }, ">");
+        */
 
         // tl.to(camera, {
         //     x: "-=450",
