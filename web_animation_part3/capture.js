@@ -48,6 +48,25 @@ const path = require('path');
         process.exit(1);
     }
 
+    // Force strict synchronization
+    await page.evaluate(() => {
+        // Disable GSAP's auto-sleep and lag smoothing
+        gsap.ticker.lagSmoothing(0);
+        
+        // Stop the GSAP ticker completely
+        gsap.ticker.remove(gsap.updateRoot);
+        gsap.ticker.sleep();
+        
+        // Pause the global timeline so we can manually scrub it
+        gsap.globalTimeline.pause();
+        
+        // Ensure main timeline is unpaused locally so it responds to global scrubbing
+        if (window.tl) window.tl.paused(false);
+
+        // Disable RAF
+        window.requestAnimationFrame = () => {};
+        window.cancelAnimationFrame = () => {};
+    });
 
     const captureVariant = async ({ name, darkMode }) => {
         const outputDir = path.join(__dirname, name);
@@ -61,12 +80,12 @@ const path = require('path');
         const timing = await page.evaluate(() => {
             const tl = window.tl;
             const duration = tl.duration();
-            const labels = tl.labels || {};
-            const startTime = typeof labels.captureStart9 === "number" ? labels.captureStart9 : 0;
+            // Capture from the very beginning to ensure full animation correspondence
+            const startTime = 0; 
             return { duration, startTime };
         });
 
-        const fps = 120;
+        const fps = 60;
         const totalFrames = Math.ceil(timing.duration * fps);
         const startFrame = Math.floor(timing.startTime * fps);
 
@@ -79,15 +98,11 @@ const path = require('path');
         for (let i = startFrame; i <= totalFrames; i++) {
             const time = i / fps;
             await page.evaluate(async (t) => {
-                window.tl.pause();
-                window.tl.seek(t, false);
-
-                const onUpdate = window.tl.eventCallback("onUpdate");
-                if (typeof onUpdate === "function") onUpdate();
-
-                await new Promise((resolve) => {
-                    requestAnimationFrame(() => requestAnimationFrame(resolve));
-                });
+                // Seek the GLOBAL timeline. This ensures that:
+                // 1. The main timeline (window.tl) moves.
+                // 2. Any side-effect animations (like halo pulses) created by callbacks 
+                //    are also scrubbed/updated correctly relative to global time.
+                gsap.globalTimeline.seek(t, false);
             }, time);
 
             const frameIndex = i - startFrame;
@@ -105,7 +120,6 @@ const path = require('path');
     };
 
     await captureVariant({ name: 'frames_16x9_dark', darkMode: true });
-    await captureVariant({ name: 'frames_16x9_light', darkMode: false });
     
     console.log("Capture complete.");
     await browser.close();
