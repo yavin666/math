@@ -404,7 +404,7 @@ function ensureCameraGroup() {
     moveIntoCamera(pointsGroup);
     moveIntoCamera(labelsGroup);
 
-    ["path-green", "path-black-main", "path-black-last", "path-green-overlay"].forEach((id) => {
+    ["path-green", "path-green-overlay", "path-black-main", "path-black-last"].forEach((id) => {
         const p = svg.querySelector(`#${id}`);
         if (!p) return;
         if (p.parentNode !== cameraGroup) cameraGroup.insertBefore(p, pointsGroup);
@@ -526,7 +526,7 @@ function drawGrid() {
     // Horizontal Grid lines - Full range coverage for burst animation
     const yStepsMicro = [0,  100,200,300,400, 500];
     const yStepsSmall = [1000, 1500, 2000, 2500, 3000, 4000];
-    const yStepsLarge = [5000, 10000, 15000, 20000, 50000, 100000, 150000, 200000];
+    const yStepsLarge = [5000, 10000, 15000, 20000, 50000, 100000, 150000, 200000, 250000];
     const ySteps = [
         ...yStepsMicro.map((v) => ({ val: v, group: "micro" })),
         ...yStepsSmall.map((v) => ({ val: v, group: "small" })),
@@ -1192,8 +1192,8 @@ function startAnimation() {
         tl.call(() => stepPulse(13), [], ">-0.1");
 
         // 13 -> 14
-        tl.set(config, { greenifyN: 14 }, ">");
-        tl.call(() => stepPulse(14), [], ">");
+        tl.to(config, { greenifyN: 14, duration: stepDur3, ease: "linear" }, ">");
+        tl.call(() => stepPulse(14), [], ">-0.1");
 
         // 14维闪烁
         tl.to(config, {
