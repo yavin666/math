@@ -687,7 +687,7 @@ function prepareDataElements() {
             color = config.colors.red;
             labelColor = config.colors.red;
             labelWeight = "normal";
-            labelSize = "48px"; // Increased highlight size
+            labelSize = "36px"; // Increased highlight size
             r = 14;
         }
 
@@ -1072,12 +1072,12 @@ function startAnimation() {
         tl.to(config, {
             point9Flicker: 0.25,
             duration: 0.1,
-            repeat: 30, // Reduced repeats (was 80)
+            repeat: 80, // Increased repeats (was 30)
             yoyo: true,
             ease: "steps(1)"
         }, ">");
 
-        tl.to({}, { duration: 1.0 }, "<"); // Reduced parallel wait (was 2.8)
+        tl.to({}, { duration: 3.0 }, "<"); // Increased parallel wait
 
         tl.call(() => {
             cameraMode = "locked";
@@ -1094,6 +1094,10 @@ function startAnimation() {
             config.point9Flicker = 1;
         }, [], ">");
 
+        // Hold longer after 9 flicker
+        tl.to({}, { duration: 2.5 }, ">");
+
+        /*
         // Transition Phase: Focus 14, Expand to 24
         // Calculate target camera state for n=14 when n=24
         // Since we cannot predict exact values easily without running simulation,
@@ -1174,40 +1178,42 @@ function startAnimation() {
             duration: transitionDur,
             ease: "power2.inOut"
         }, "expandView");
+        */
 
         // 9 -> 10 (Start AFTER transition)
-        tl.to(config, { greenifyN: 10, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(10), [], ">-0.1");
+        // tl.to(config, { greenifyN: 10, duration: stepDur3, ease: "linear" }, ">");
+        // tl.call(() => stepPulse(10), [], ">-0.1");
 
         // 10 -> 11
-        tl.to(config, { greenifyN: 11, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(11), [], ">-0.1");
+        // tl.to(config, { greenifyN: 11, duration: stepDur3, ease: "linear" }, ">");
+        // tl.call(() => stepPulse(11), [], ">-0.1");
 
         // 11 -> 12
-        tl.to(config, { greenifyN: 12, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(12), [], ">-0.1");
+        // tl.to(config, { greenifyN: 12, duration: stepDur3, ease: "linear" }, ">");
+        // tl.call(() => stepPulse(12), [], ">-0.1");
 
         // 12 -> 13
-        tl.to(config, { greenifyN: 13, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(13), [], ">-0.1");
+        // tl.to(config, { greenifyN: 13, duration: stepDur3, ease: "linear" }, ">");
+        // tl.call(() => stepPulse(13), [], ">-0.1");
 
         // 13 -> 14
-        tl.to(config, { greenifyN: 14, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(14), [], ">-0.1");
+        // tl.to(config, { greenifyN: 14, duration: stepDur3, ease: "linear" }, ">");
+        // tl.call(() => stepPulse(14), [], ">-0.1");
 
         // 14维闪烁
-        tl.to(config, {
-            point14Flicker: 0.25, // Corrected to point14Flicker
-            duration: 0.1,
-            repeat: 30, // Reduced from 80
-            yoyo: true,
-            ease: "steps(1)"
-        }, ">");
+        // tl.to(config, {
+        //     point14Flicker: 0.25, // Corrected to point14Flicker
+        //     duration: 0.1,
+        //     repeat: 30, // Reduced from 80
+        //     yoyo: true,
+        //     ease: "steps(1)"
+        // }, ">");
 
-        // After 14 flicker completes, continue expanding to full view
+        // After 9 flicker completes, continue expanding to full view
         tl.addLabel("fullExpand", ">");
         tl.to(config, {
             yMax: 220000,
+            n: 24, // Ensure we expand to 24 dimensions
             duration: 2.0,
             ease: "power2.inOut"
         }, "fullExpand");
@@ -1234,10 +1240,10 @@ function startAnimation() {
              const dist = Math.abs(axisBaselineY - ty);
              const pad = config.svgHeight * 0.18;
              const usable = Math.max(200, config.svgHeight - pad * 2);
-             const s = Math.max(0.1, Math.min(3.5, usable / (dist + 240)));
-             const targetCenterY = ty * 0.4 + axisBaselineY * 0.6;
-             
-             // AnchorX logic for n=24 is ~0.5
+            const s = Math.max(0.1, Math.min(3.5, usable / (dist + 240))) * 1.; // Zoom closer (1.5x)
+            const targetCenterY = ty * 0.4 + axisBaselineY * 0.6;
+            
+            // AnchorX logic for n=24 is ~0.5
              const anchorX = 0.5;
              const anchorY = 0.62;
              
