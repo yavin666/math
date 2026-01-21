@@ -219,7 +219,7 @@ function updateChartGeometry() {
         p.setAttribute("transform", `translate(${x} ${y}) scale(${tp * firstAlpha * emphasis})`);
         let opacity = tp * (config.dataAlpha ?? 1) * firstAlpha;
         if (n === 4) opacity *= (config.point4Flicker ?? 1);
-        if (n === 9) opacity *= (config.point9Flicker ?? 1);
+        if (n === 7) opacity *= (config.point9Flicker ?? 1);
         if (n === 14) opacity *= (config.point14Flicker ?? 1);
         const dim = config.focusDim ?? 0;
         const dim10 = config.focusDim10 ?? 0;
@@ -272,7 +272,7 @@ function updateChartGeometry() {
         const firstAlpha = n === 1 ? (config.firstValueAlpha ?? 1) : 1;
         let opacity = tl * (config.dataAlpha ?? 1) * firstAlpha;
         if (n === 4) opacity *= (config.point4Flicker ?? 1);
-        if (n === 9) opacity *= (config.point9Flicker ?? 1);
+        if (n === 7) opacity *= (config.point9Flicker ?? 1);
         if (n === 14) opacity *= (config.point14Flicker ?? 1);
         const dim = config.focusDim ?? 0;
         const dim10 = config.focusDim10 ?? 0;
@@ -404,7 +404,7 @@ function ensureCameraGroup() {
     moveIntoCamera(pointsGroup);
     moveIntoCamera(labelsGroup);
 
-    ["path-green", "path-green-overlay", "path-black-main", "path-black-last"].forEach((id) => {
+    ["path-green", "path-black-main", "path-black-last", "path-green-overlay"].forEach((id) => {
         const p = svg.querySelector(`#${id}`);
         if (!p) return;
         if (p.parentNode !== cameraGroup) cameraGroup.insertBefore(p, pointsGroup);
@@ -526,7 +526,7 @@ function drawGrid() {
     // Horizontal Grid lines - Full range coverage for burst animation
     const yStepsMicro = [0,  100,200,300,400, 500];
     const yStepsSmall = [1000, 1500, 2000, 2500, 3000, 4000];
-    const yStepsLarge = [5000, 10000, 15000, 20000, 50000, 100000, 150000, 200000, 250000];
+    const yStepsLarge = [5000, 10000, 15000, 20000, 50000, 100000, 150000, 200000];
     const ySteps = [
         ...yStepsMicro.map((v) => ({ val: v, group: "micro" })),
         ...yStepsSmall.map((v) => ({ val: v, group: "small" })),
@@ -977,7 +977,7 @@ function startAnimation() {
         
         // Let's manually set initial camera state for 1-9 focus
         // We can use framePointWithXAxis(9, 236) as a starting point.
-        const pFocus9 = framePointWithXAxis(6, 72);
+        const pFocus9 = framePointWithXAxis(9, 306);
         // Adjust scale to be slightly tighter on 1-9 if needed, or just use pFocus9.
         // pFocus9 likely tries to put 9 at anchorX (0.94 -> right side).
         // This effectively shows 1-9 comfortably.
@@ -1066,8 +1066,8 @@ function startAnimation() {
 
         // n=8 to 9 (new stall)
         const stepDur2 = 0.5; // Faster (was 1.8)
-        tl.to(config, { greenifyN: 9, duration: stepDur2, ease: "linear" }, ">");
-        tl.call(() => stepPulse(9), [], ">-0.1");
+        tl.to(config, { greenifyN: 7, duration: stepDur2, ease: "linear" }, ">");
+        tl.call(() => stepPulse(7), [], ">-0.1");
         tl.addLabel("captureStart9", ">");
         tl.to(config, {
             point9Flicker: 0.25,
@@ -1192,8 +1192,8 @@ function startAnimation() {
         tl.call(() => stepPulse(13), [], ">-0.1");
 
         // 13 -> 14
-        tl.to(config, { greenifyN: 14, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(14), [], ">-0.1");
+        tl.set(config, { greenifyN: 14 }, ">");
+        tl.call(() => stepPulse(14), [], ">");
 
         // 14维闪烁
         tl.to(config, {

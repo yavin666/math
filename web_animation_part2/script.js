@@ -1240,7 +1240,7 @@ function startAnimation() {
              const dist = Math.abs(axisBaselineY - ty);
              const pad = config.svgHeight * 0.18;
              const usable = Math.max(200, config.svgHeight - pad * 2);
-            const s = Math.max(0.1, Math.min(3.5, usable / (dist + 240))) * 1.; // Zoom closer (1.5x)
+            const s = Math.max(0.1, Math.min(3.5, usable / (dist + 240))) * 1.8; // Zoom closer (1.5x)
             const targetCenterY = ty * 0.4 + axisBaselineY * 0.6;
             
             // AnchorX logic for n=24 is ~0.5
