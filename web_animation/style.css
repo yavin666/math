@@ -124,7 +124,7 @@ svg {
 
 .y-label {
     top: 50%;
-    left: 10px;
+    left: 50px;
     transform: translateY(-50%) rotate(-90deg);
     transform-origin: left top;
 }

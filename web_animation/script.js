@@ -11,7 +11,7 @@ const data = [
 const config = {
     svgWidth: 2200, 
     svgHeight: 1200, 
-    margin: { top: 200, right: 220, bottom: 260, left: 320 }, // Increased margins for labels
+    margin: { top: 200, right: 220, bottom: 260, left: 200 }, // Increased margins for labels
     colors: {
         green: "#2e7d32",
         red: "#d32f2f",
@@ -119,13 +119,15 @@ function updateChartGeometry() {
         // Visibility Logic:
         // 1. Hide if above chart (future values not reached by zoom yet)
         // 2. Hide if clustered at bottom (past values that are now too small relative to scale)
+        // 3. Hide values < 500 when dimension >= 10
         // Threshold increased to 40px to prevent clutter near 0
         const isTooHigh = y < config.margin.top;
         const isTooLow = val > 0 && y > (config.svgHeight - config.margin.bottom - 30);
+        const isHiddenLowValue = config.n >= 10 && val < 500;
         
         if (config.ticksAutoOpacity) {
             const group = line.dataset.group;
-            const baseOpacity = (isTooHigh || isTooLow) ? 0 : 1;
+            const baseOpacity = (isTooHigh || isTooLow || isHiddenLowValue) ? 0 : 1;
             const groupOpacity = (group === "micro" || group === "small") ? smallFactor : (group === "large" ? largeFactor : 1);
             line.style.opacity = String(baseOpacity * groupOpacity);
         }
@@ -143,10 +145,11 @@ function updateChartGeometry() {
         
         const isTooHigh = y < config.margin.top;
         const isTooLow = val > 0 && y > (config.svgHeight - config.margin.bottom - 40); 
+        const isHiddenLowValue = config.n >= 10 && val < 500;
         
         if (config.ticksAutoOpacity) {
             const group = t.dataset.group;
-            const baseOpacity = (isTooHigh || isTooLow) ? 0 : 1;
+            const baseOpacity = (isTooHigh || isTooLow || isHiddenLowValue) ? 0 : 1;
             const groupOpacity = (group === "micro" || group === "small") ? smallFactor : (group === "large" ? largeFactor : 1);
             t.style.opacity = String(baseOpacity * groupOpacity);
         }
@@ -175,7 +178,7 @@ function updateChartGeometry() {
         const firstAlpha = n === 1 ? (config.firstValueAlpha ?? 1) : 1;
         const growthTargetN = config.growthTargetN;
         const isGrowthTarget = growthTargetN == null || n === growthTargetN;
-        const emphasis = (config.specialGrowthEnabled && isGrowthTarget && (n === 10 || n === 11)) ? (1 + 1.2 * (config.growthEmphasis ?? 0)) : 1;
+        const emphasis = 1;
         
         const core = p.querySelector(".data-point-core");
         if (core) {
@@ -248,7 +251,7 @@ function updateChartGeometry() {
             const growthTargetN = config.growthTargetN;
             const isGrowthTarget = growthTargetN == null || n === growthTargetN;
             if (isGrowthTarget) {
-                const s = 1 + 1.2 * (config.growthEmphasis ?? 0);
+                const s = 1;
                 l.setAttribute("transform", `translate(${cx} ${labelY}) scale(${s}) translate(${-cx} ${-labelY})`);
                 
                 if (config.growthEmphasis > 0) {
@@ -789,140 +792,81 @@ function startAnimation() {
         config.ticksAutoOpacity = true;
     });
 
-    tl.addLabel("phase1", "afterAxes+=3.0");
+    tl.addLabel("phase1", "afterAxes+=1.0");
 
     if (config.cameraEnabled) {
         const rect = chartWrapper.getBoundingClientRect();
 
-        const pFull = { x: 0, y: 0, s: 1 };
-        const pClose = { x: rect.width * 0.22, y: -rect.height * 0.16, s: 2.35 };
-        const pMid = { x: -rect.width * 0.10, y: -rect.height * 0.06, s: 1.45 };
-        const pEnd = { x: 0, y: 0, s: 1 };
+        // Define camera keyframes
+        const pFull = { x: 0, y: 0, scale: 1 };
+        const pClose = { x: rect.width * 0.02, y: -rect.height * 0.02, scale: 2.0 };
 
-        const catmullRom = (p0, p1, p2, p3, t) => {
-            const t2 = t * t;
-            const t3 = t2 * t;
-            return 0.5 * (
-                (2 * p1) +
-                (-p0 + p2) * t +
-                (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
-                (-p0 + 3 * p1 - 3 * p2 + p3) * t3
-            );
-        };
-
-        const samplePath = (p) => {
-            const segLen = 1 / 3;
-            if (p <= segLen) {
-                const t = p / segLen;
-                return {
-                    x: catmullRom(pFull.x, pFull.x, pClose.x, pMid.x, t),
-                    y: catmullRom(pFull.y, pFull.y, pClose.y, pMid.y, t),
-                    s: catmullRom(pFull.s, pFull.s, pClose.s, pMid.s, t)
-                };
-            }
-            if (p <= 2 * segLen) {
-                const t = (p - segLen) / segLen;
-                return {
-                    x: catmullRom(pFull.x, pClose.x, pMid.x, pEnd.x, t),
-                    y: catmullRom(pFull.y, pClose.y, pMid.y, pEnd.y, t),
-                    s: catmullRom(pFull.s, pClose.s, pMid.s, pEnd.s, t)
-                };
-            }
-            const t = (p - 2 * segLen) / segLen;
-            return {
-                x: catmullRom(pClose.x, pMid.x, pEnd.x, pEnd.x, t),
-                y: catmullRom(pClose.y, pMid.y, pEnd.y, pEnd.y, t),
-                s: catmullRom(pClose.s, pMid.s, pEnd.s, pEnd.s, t)
-            };
-        };
-
-        const camera = { p: 0 };
+        const camera = { x: pFull.x, y: pFull.y, scale: pFull.scale };
+        
         const applyCamera = () => {
-            const v = samplePath(camera.p);
-            gsap.set(chartWrapper, { x: v.x, y: v.y, scale: v.s });
+            gsap.set(chartWrapper, { x: camera.x, y: camera.y, scale: camera.scale });
         };
 
+        // Initialize at Full Panorama
         tl.call(applyCamera, [], "afterAxes");
 
+        // 1. Zoom IN to details (Full -> Close)
         tl.to(camera, {
-            p: 2 / 3,
-            duration: 9,
+            x: pClose.x,
+            y: pClose.y,
+            scale: pClose.scale,
+            duration: 2,
             ease: "sine.inOut",
             onUpdate: applyCamera
-        }, "afterAxes");
+        }, "phase1");
 
+        // 2. Zoom OUT to panorama (Close -> Full)
         tl.to(camera, {
-            p: 1,
-            duration: 2.0,
+            x: pFull.x,
+            y: pFull.y,
+            scale: pFull.scale,
+            duration: 6,
             ease: "sine.inOut",
             onUpdate: applyCamera
-        }, "afterAxes+=9");
+        }, "phase1+=2");
     }
 
-    // 1. Slow start (n=2 to n=7) 
-    // Keep number/point progression unchanged; delay only yMax scaling
-    tl.to(config, {
-        n: 7,
-        duration: 7,
-        ease: "linear"
-    }, "phase1");
-    tl.to(config, {
-        yMax: 200, // Adjusted for n=7 (value 126)
-        duration: 7,
-        ease: "linear"
-    }, "phase1");
-
-    // 2. The Burst (approaching n=16 and beyond)
-    // User wants "burst at ~5000". n=16 is 4320.
-    // We accelerate n and drastically increase yMax
+    // Single continuous data growth
     tl.to(config, {
         n: maxN,
-        duration: 6,
-        ease: "power4.inOut"
-    }, "phase1+=7");
+        duration: 8,
+        ease: "power2.inOut"
+    }, "phase1");
+
     tl.to(config, {
         yMax: yMaxTargetAtMaxN,
-        duration: 6,
-        ease: "power4.inOut"
-    }, "<+0.45");
+        duration: 8,
+        ease: "power2.inOut"
+    }, "phase1");
 
     tl.addLabel("final");
+    
+    // Immediate Cut to Focus (510 & 582)
     tl.call(() => {
         config.specialGrowthEnabled = true;
         specialGrowth.v10 = 500;
         specialGrowth.v11 = 582;
         config.growthEmphasis = 0;
-        config.focusDim = 0;
-        config.focusDim10 = 0;
-        config.focusDim11 = 0;
         config.growthTargetN = 10;
-    }, [], "final");
-    
-    tl.to(config, {
-        focusDim: 1,
-        duration: 0.9,
-        ease: "sine.inOut"
-    }, "final");
+        
+        // Instant Focus Settings
+        // Focus on n=10 first (dim others and n=11)
+        config.focusDim = 1;
+        config.focusDim10 = 0;
+        config.focusDim11 = 1;
 
-    tl.to(config, {
-        focusDim11: 1,
-        duration: 0.9,
-        ease: "sine.inOut"
-    }, "final");
-
-    if (config.cameraEnabled) {
-        tl.call(() => {
-            if (focusState.active) return;
+        if (config.cameraEnabled) {
             focusState.active = true;
+            gsap.set(chartWrapper, { scale: focusState.scale });
             gsap.ticker.add(focusTick);
-        }, [], "final");
-
-        tl.to(chartWrapper, {
-            scale: focusState.scale,
-            duration: 1.0,
-            ease: "sine.inOut"
-        }, "final");
-    }
+            focusTick(true); // Force immediate camera update
+        }
+    }, [], "final");
 
     tl.to(specialGrowth, {
         v10: 510,
@@ -950,7 +894,7 @@ function startAnimation() {
         onStart: () => {
             config.growthTargetN = 11;
         }
-    }, "final+=2.25");
+    }, "final+=2.75");
 
     tl.to(specialGrowth, {
         v11: 592,
@@ -962,19 +906,19 @@ function startAnimation() {
             focusState.active = false;
             gsap.ticker.remove(focusTick);
         }
-    }, "final+=2.25");
+    }, "final+=2.75");
 
     tl.to(config, {
         growthEmphasis: 1,
         duration: 0.2,
         ease: "power2.out"
-    }, "final+=2.25");
+    }, "final+=2.75");
 
     tl.to(config, {
         growthEmphasis: 0,
         duration: 0.2,
         ease: "power2.in"
-    }, "final+=3.3");
+    }, "final+=3.8");
 }
 
 // Run

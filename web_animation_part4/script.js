@@ -232,7 +232,7 @@ function updateChartGeometry() {
         const firstAlpha = n === 1 ? (config.firstValueAlpha ?? 1) : 1;
         const growthTargetN = config.growthTargetN;
         const isGrowthTarget = growthTargetN == null || n === growthTargetN;
-        const emphasis = (config.specialGrowthEnabled && isGrowthTarget && (n === 10 || n === 11)) ? (1 + 0.35 * (config.growthEmphasis ?? 0)) : 1;
+        const emphasis = 1;
         p.setAttribute("transform", `translate(${x} ${y}) scale(${tp * firstAlpha * emphasis})`);
         let opacity = tp * (config.dataAlpha ?? 1) * firstAlpha;
         if (n === 4) opacity *= (config.point4Flicker ?? 1);
@@ -332,16 +332,7 @@ function updateChartGeometry() {
         const isGreen = n <= greenifyN + 1e-6;
         l.classList.toggle("is-green", isGreen);
 
-        if (config.specialGrowthEnabled && (n === 10 || n === 11)) {
-            const growthTargetN = config.growthTargetN;
-            const isGrowthTarget = growthTargetN == null || n === growthTargetN;
-            if (isGrowthTarget) {
-                const s = 1 + 0.35 * (config.growthEmphasis ?? 0);
-                l.setAttribute("transform", `translate(${cx} ${labelY}) scale(${s}) translate(${-cx} ${-labelY})`);
-            } else if (l.hasAttribute("transform")) {
-                l.removeAttribute("transform");
-            }
-        } else if (l.hasAttribute("transform")) {
+        if (l.hasAttribute("transform")) {
             l.removeAttribute("transform");
         }
     });
