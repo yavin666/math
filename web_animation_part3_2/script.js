@@ -702,7 +702,7 @@ function startAnimation() {
     config.dataVisible = true;
     config.dataAlpha = 1;
     config.firstValueAlpha = 1;
-    config.greenifyN = 8;
+    config.greenifyN = 13;
     config.point4Flicker = 1;
     config.point9Flicker = 1;
     config.ticksAutoOpacity = false;
@@ -716,7 +716,27 @@ function startAnimation() {
     specialGrowth.v11 = 582;
     updateChartGeometry();
 
-    const focusCameraOnRange = (fromN, toN) => {
+    const enablePoint14OpacityFlicker = () => {
+        if (typeof gsap === "undefined") return;
+        if (!config) return;
+
+        gsap.killTweensOf(config, "point14Flicker");
+        config.point14Flicker = 1;
+        gsap.to(config, {
+            point14Flicker: 0.35,
+            duration: 1.5,
+            yoyo: true,
+            repeat: -1,
+            ease: "sine.inOut",
+            overwrite: "auto",
+            onUpdate: () => {
+                updateChartGeometry();
+            }
+        });
+    };
+    enablePoint14OpacityFlicker();
+
+    const focusCameraOnRange = (fromN, toN, centerValueY = null) => {
         const n1 = Math.min(fromN, toN);
         const n2 = Math.max(fromN, toN);
         const x1 = xScale(n1);
@@ -736,16 +756,16 @@ function startAnimation() {
         const w = Math.max(1, boxX2 - boxX1);
         const h = Math.max(1, boxY2 - boxY1);
         const baseScale = Math.max(0.1, Math.min(6, Math.min(config.svgWidth / w, config.svgHeight / h)));
-        const scale = Math.max(0.1, Math.min(6, baseScale * 0.82));
+        const scale = Math.max(0.1, Math.min(6, baseScale * 1.18));
 
         const cx = (boxX1 + boxX2) / 2;
-        const cy = (boxY1 + boxY2) / 2;
+        const cy = Number.isFinite(centerValueY) ? yScale(centerValueY) : (boxY1 + boxY2) / 2;
         camera.scale = scale;
         camera.x = config.svgWidth / 2 - cx * scale;
         camera.y = config.svgHeight / 2 - cy * scale;
     };
 
-    focusCameraOnRange(8, 14);
+    focusCameraOnRange(11, 17, 2000);
     applyCamera();
 
     const xAxisLine = document.querySelector("#x-axis-line");
@@ -816,13 +836,10 @@ function startAnimation() {
             }
         };
 
-        tl.call(() => stepPulse(8), [], "start");
         tl.to({}, { duration: 0.35 }, "start");
         tl.addLabel("captureStart9", "start+=0.35");
 
         tl.to({}, { duration: 1.0 }, "<"); // Reduced parallel wait (was 2.8)
-
-        const stepDur3 = 1.0;
 
         // Transition Phase: Focus 14, Expand to 24
         // Calculate target camera state for n=14 when n=24
@@ -841,22 +858,6 @@ function startAnimation() {
             duration: transitionDur,
             ease: "power2.inOut"
         }, "expandView");
-
-        // 9 -> 10 (Start AFTER transition)
-        tl.to(config, { greenifyN: 10, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(10), [], ">-0.1");
-
-        // 10 -> 11
-        tl.to(config, { greenifyN: 11, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(11), [], ">-0.1");
-
-        // 11 -> 12
-        tl.to(config, { greenifyN: 12, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(12), [], ">-0.1");
-
-        // 12 -> 13
-        tl.to(config, { greenifyN: 13, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(13), [], ">-0.1");
 
         // After 14 flicker completes, continue expanding to full view
         tl.addLabel("fullExpand", ">");

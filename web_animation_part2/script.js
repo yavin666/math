@@ -11,9 +11,9 @@ const data = [
 
 // Configuration
 const config = {
-    svgWidth: 3000, 
+    svgWidth: 2200, 
     svgHeight: 1200, 
-    margin: { top: 200, right: 220, bottom:200, left: 320 }, // Increased margins for labels
+    margin: { top: 240, right: 260, bottom: 260, left: 360 }, // Increased margins for labels
     colors: {
         green: "#2e7d32",
         red: "#d32f2f",
@@ -515,9 +515,9 @@ function initChart() {
 
 function drawGrid() {
     // Horizontal Grid lines - Full range coverage for burst animation
-    const yStepsMicro = [0, 50 , 100,150,200,250,300,350,400,450, 500];
-    const yStepsSmall = [1000, 1500, 2000, 2500, 3000, 4000];
-    const yStepsLarge = [5000, 10000, 15000, 20000, 50000, 100000, 150000, 200000, 250000];
+    const yStepsMicro = [0, 100, 200, 300, 400, 500];
+    const yStepsSmall = [1000, 2000, 3000, 4000];
+    const yStepsLarge = [5000, 10000, 20000, 50000, 100000, 200000];
     const ySteps = [
         ...yStepsMicro.map((v) => ({ val: v, group: "micro" })),
         ...yStepsSmall.map((v) => ({ val: v, group: "small" })),
@@ -540,7 +540,7 @@ function drawGrid() {
         // Y-Axis Labels
         if (val > 0) {
             const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            text.setAttribute("x", config.margin.left - 80);
+            text.setAttribute("x", config.margin.left - 30);
             text.setAttribute("y", y + 4);
             text.setAttribute("text-anchor", "end");
             text.setAttribute("class", "tick-text");
@@ -604,7 +604,7 @@ function drawAxesTicks() {
     yTitle.setAttribute("text-anchor", "middle");
     yTitle.setAttribute("transform", `rotate(-90, ${xPos}, ${yCenter})`);
     yTitle.style.fill = "var(--text-secondary)";
-    yTitle.style.fontSize = "32px";
+    yTitle.style.fontSize = "26px";
     yTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
     yTitle.textContent = "Kissing Number";
     axesGroup.appendChild(yTitle);
@@ -618,7 +618,7 @@ function drawAxesTicks() {
     xTitle.setAttribute("y", yPosLabel);
     xTitle.setAttribute("text-anchor", "middle");
     xTitle.style.fill = "var(--text-secondary)";
-    xTitle.style.fontSize = "32px";
+    xTitle.style.fontSize = "26px";
     xTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
     xTitle.textContent = "Dimension ";
     
@@ -691,17 +691,17 @@ function prepareDataElements() {
         const y = yScale(d.val);
         
         let color = config.colors.black;
-        let r = 14;
+        let r = 10;
         let labelColor = config.colors.black;
         let labelWeight = "normal";
-        let labelSize = "36px"; // Increased base size
+        let labelSize = "22px";
 
         if (d.n === 14) {
             color = config.colors.red;
             labelColor = config.colors.red;
             labelWeight = "normal";
-            labelSize = "36px"; // Increased highlight size
-            r = 14;
+            labelSize = "22px";
+            r = 12;
         }
 
         // Point (reference-style: soft disk + bright core)
@@ -733,7 +733,7 @@ function prepareDataElements() {
         core.classList.add("data-point-core");
         core.setAttribute("cx", "0");
         core.setAttribute("cy", "0");
-        core.setAttribute("r", String(Math.max(4, r * 0.5)));
+        core.setAttribute("r", String(Math.max(4, r * 0.3)));
         g.appendChild(core);
 
         pointsGroup.appendChild(g);
@@ -741,7 +741,7 @@ function prepareDataElements() {
         // Label
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
         text.setAttribute("x", x);
-        text.setAttribute("y", y - 28);
+        text.setAttribute("y", y - 20);
         text.classList.add("point-label");
         if (d.n === 7) text.classList.add("highlight");
         
@@ -856,7 +856,7 @@ function startAnimation() {
 
     // Initial state
     config.n = 14.0; // Limit display range to below 2000 (n=14 is ~1932)
-    config.yMax = 2000; // Limit Y-axis
+    config.yMax = 1200; // Limit Y-axis to 500 initially
     config.axesVisible = true;
     config.dataVisible = true;
     config.dataAlpha = 1;
@@ -990,7 +990,7 @@ function startAnimation() {
         
         // Let's manually set initial camera state for 1-9 focus
         // We can use framePointWithXAxis(9, 236) as a starting point.
-        const pFocus9 = framePointWithXAxis(6, 72);
+        const pFocus9 = framePointWithXAxis(4.5 , 24 );
         // Adjust scale to be slightly tighter on 1-9 if needed, or just use pFocus9.
         // pFocus9 likely tries to put 9 at anchorX (0.94 -> right side).
         // This effectively shows 1-9 comfortably.
@@ -1006,41 +1006,32 @@ function startAnimation() {
         const pFocus24 = framePointWithXAxis(24, 196560);
         // tl.to(camera, { x: pFocus24.x, y: pFocus24.y, scale: pFocus24.scale, duration: 1.0, ease: "sine.inOut" }, "intro+=0.8");
 
-        // Difficulty Phase: Flicker on n=4
         tl.to(config, {
             greenifyN: 4,
-            duration: 1.2, // Faster (was 2.5)
+            duration: 1.2,
             ease: "linear"
         }, "start");
 
-        tl.to(config, {
-            point4Flicker: 0.25,
-            duration: 0.08,
-            repeat: 12, // Less repeats for speed (was 20)
-            yoyo: true,
-            ease: "steps(1)"
-        }, "start");
-        tl.set(config, { point4Flicker: 1 }, "breakthrough");
-        
-        tl.addLabel("breakthrough", "start+=1.2"); // Adjusted label time
+        tl.addLabel("breakthrough", "start+=1.2");
         
         // Helper: Fine white halo pulse
         const stepPulse = (n) => {
             const pt = pointsGroup.querySelector(`g.data-point[data-n="${n}"]`);
             if (pt) {
-                const halo = pt.querySelector('.data-point-halo');
-                if (halo) {
+                const ring = pt.querySelector('.data-point-ring');
+                if (ring) {
+                    const baseR = Number(pt.dataset.targetRadius) || 10;
                     // Reset
-                    gsap.set(halo, { opacity: 0, attr: { r: 14 } });
+                    gsap.set(ring, { opacity: 0, attr: { r: baseR } });
                     // Pulse animation
                     const pulseTl = gsap.timeline();
-                    pulseTl.to(halo, {
+                    pulseTl.to(ring, {
                         opacity: 1,
                         duration: 0.1,
                         ease: "power2.out"
                     })
-                    .to(halo, {
-                        attr: { r: 60 }, // Expand radius significantly
+                    .to(ring, {
+                        attr: { r: baseR * 4.3 }, // Expand radius significantly
                         opacity: 0,
                         duration: 0.6, // Faster (was 0.9)
                         ease: "sine.out"
@@ -1062,47 +1053,34 @@ function startAnimation() {
 
         // n=4 to 5
         tl.to(config, { greenifyN: 5, duration: stepDur, ease: "linear" }, "breakthrough+=0.2");
-        tl.call(() => stepPulse(5), [], ">-0.1"); // Trigger pulse just before end of move
 
         // n=5 to 6
         tl.to(config, { greenifyN: 6, duration: stepDur, ease: "linear" }, ">");
-        tl.call(() => stepPulse(6), [], ">-0.1");
 
         // n=6 to 7
         tl.to(config, { greenifyN: 7, duration: stepDur, ease: "linear" }, ">");
-        tl.call(() => stepPulse(7), [], ">-0.1");
+
+        // n=7 to 8
+        tl.to(config, { greenifyN: 8, duration: stepDur, ease: "linear" }, ">");
+        tl.call(() => stepPulse(8), [], ">-0.1");
 
         // n=8 to 9 (new stall)
-        const stepDur2 = 0.5; // Faster (was 1.8)
-        tl.to(config, { greenifyN: 7, duration: stepDur2, ease: "linear" }, ">");
-        tl.call(() => stepPulse(7), [], ">-0.1");
+        const stepDur2 = 0.5;
+        tl.to(config, { greenifyN: 8, duration: stepDur2, ease: "linear" }, ">");
         tl.addLabel("captureStart9", ">");
-        tl.to(config, {
-            point9Flicker: 0.25,
-            duration: 0.1,
-            repeat: 80, // Increased repeats (was 30)
-            yoyo: true,
-            ease: "steps(1)"
-        }, ">");
 
-        tl.to({}, { duration: 3.0 }, "<"); // Increased parallel wait
+        tl.to({}, { duration: 3.0 }, "<");
+
+        tl.to(config, { yMax: 2000, duration: 1.5, ease: "power2.inOut" }, ">");
 
         tl.call(() => {
             cameraMode = "locked";
         }, [], ">");
 
         // 4. 从9维继续向右：依次点亮10~13维，再让13维闪烁并伴随镜头右移和X轴生长
-        const stepDur3 = 0.4; // Faster (was 1.6)
+        const stepDur3 = 0.4;
 
-        // 停止9维的闪烁
-        tl.call(() => {
-            if (typeof gsap !== "undefined") {
-                gsap.killTweensOf(config, "point9Flicker");
-            }
-            config.point9Flicker = 1;
-        }, [], ">");
-
-        // Hold longer after 9 flicker
+        // Hold longer after 9
         tl.to({}, { duration: 2.5 }, ">");
 
         /*

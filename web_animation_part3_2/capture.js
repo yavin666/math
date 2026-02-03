@@ -32,7 +32,7 @@ const path = require('path');
     
     const page = await browser.newPage();
     
-    await page.setViewport({ width: 2100, height: 1080, deviceScaleFactor: 1 });
+    await page.setViewport({ width: 2200, height: 1080, deviceScaleFactor: 1 });
     
     const url = `file://${path.join(__dirname, 'index.html').replace(/\\/g, '/')}`;
     console.log(`Navigating to ${url}`);
@@ -77,14 +77,28 @@ const path = require('path');
             else document.body.classList.remove('dark-mode');
         }, darkMode);
 
-        const duration = await page.evaluate(() => window.tl.duration());
-        const fps = 60;
-        // 捕获到8维点亮之后不久结束，大约在动画开始后10秒左右
-        const captureUntilTime = 10.0;
-        const totalFrames = Math.ceil(captureUntilTime * fps);
-        console.log(`[${name}] Capturing until ${captureUntilTime}s, Total frames: ${totalFrames}`);
+        const timing = await page.evaluate(() => {
+            const tl = window.tl;
+            const duration = tl.duration();
+            // Capture from the very beginning to ensure full animation correspondence
+            const startTime = 0; 
+            return { duration, startTime };
+        });
 
-        for (let i = 0; i <= totalFrames; i++) {
+        const fps = 60;
+        const extraTailSeconds = 12.0;
+        const endTime = timing.duration + extraTailSeconds;
+        const totalFrames = Math.ceil(endTime * fps);
+        const startFrame = Math.floor(timing.startTime * fps);
+
+        console.log(
+            `[${name}] Animation duration: ${timing.duration}s, ` +
+            `end at t=${endTime}s, ` +
+            `capture from t=${timing.startTime}s (frame ${startFrame}), ` +
+            `Total frames: ${totalFrames - startFrame + 1}`
+        );
+
+        for (let i = startFrame; i <= totalFrames; i++) {
             const time = i / fps;
             await page.evaluate(async (t) => {
                 // Seek the GLOBAL timeline. This ensures that:
@@ -94,7 +108,8 @@ const path = require('path');
                 gsap.globalTimeline.seek(t, false);
             }, time);
 
-            const filename = `frame_${String(i).padStart(4, '0')}.png`;
+            const frameIndex = i - startFrame;
+            const filename = `frame_${String(frameIndex).padStart(4, '0')}.png`;
             const filepath = path.join(outputDir, filename);
 
             await page.screenshot({
@@ -108,7 +123,6 @@ const path = require('path');
     };
 
     await captureVariant({ name: 'frames_16x9_dark', darkMode: true });
-    // await captureVariant({ name: 'frames_16x9_light', darkMode: false });
     
     console.log("Capture complete.");
     await browser.close();

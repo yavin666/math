@@ -86,11 +86,14 @@ const path = require('path');
         });
 
         const fps = 60;
-        const totalFrames = Math.ceil(timing.duration * fps);
+        const extraTailSeconds = 1.0;
+        const endTime = timing.duration + extraTailSeconds;
+        const totalFrames = Math.ceil(endTime * fps);
         const startFrame = Math.floor(timing.startTime * fps);
 
         console.log(
             `[${name}] Animation duration: ${timing.duration}s, ` +
+            `end at t=${endTime}s, ` +
             `capture from t=${timing.startTime}s (frame ${startFrame}), ` +
             `Total frames: ${totalFrames - startFrame + 1}`
         );
