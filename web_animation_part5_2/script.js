@@ -21,7 +21,7 @@ const config = {
     minN: 11,
     xPad: 140,
     yMin: 0,
-    yMax: 600, 
+    yMax: 700, 
     n: 11, 
     maxN: 21,
     cameraEnabled: true,
@@ -350,9 +350,11 @@ function updateChartGeometry() {
             else opacity *= (1 - 0.55 * dim);
         }
         l.style.opacity = String(opacity);
-        l.textContent = String(Math.round(val));
-        if (l.dataset.animLock !== "1" && l.hasAttribute("transform")) {
-            l.removeAttribute("transform");
+        if (l.dataset.animLock !== "1") {
+            l.textContent = String(Math.round(val));
+            if (l.hasAttribute("transform")) {
+                l.removeAttribute("transform");
+            }
         }
     });
 
@@ -852,7 +854,7 @@ function drawAxesTicks() {
     // Y-Axis Title (Kissing Number) - Integrated into SVG
     const yTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
     const yCenter = config.margin.top + (config.svgHeight - config.margin.top - config.margin.bottom) / 2;
-    const xPos = 60; // Left of the axis
+    const xPos = Math.max(20, (config.margin.left - 220)); // Closer to the Y axis
 
     yTitle.setAttribute("x", xPos);
     yTitle.setAttribute("y", yCenter);
@@ -861,12 +863,25 @@ function drawAxesTicks() {
     yTitle.style.fill = "var(--text-secondary)";
     yTitle.style.fontSize = "32px";
     yTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
-    yTitle.textContent = "Kissing Number";
+    yTitle.textContent = "Triple Sphere Kissing Number";
     axesGroup.appendChild(yTitle);
 
-    // Remove old HTML label if it exists
-    const oldHtmlLabel = document.querySelector(".axis-label.y-label");
-    if (oldHtmlLabel) oldHtmlLabel.remove();
+    const xTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    const xCenter = (config.margin.left + (config.svgWidth - config.margin.right)) / 2;
+    const axisBaselineY = config.svgHeight - config.margin.bottom;
+    xTitle.setAttribute("x", String(xCenter));
+    xTitle.setAttribute("y", String(axisBaselineY + 120));
+    xTitle.setAttribute("text-anchor", "middle");
+    xTitle.style.fill = "var(--text-secondary)";
+    xTitle.style.fontSize = "32px";
+    xTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+    xTitle.textContent = "Dimension";
+    axesGroup.appendChild(xTitle);
+
+    const oldHtmlYLabel = document.querySelector(".axis-label.y-label");
+    if (oldHtmlYLabel) oldHtmlYLabel.remove();
+    const oldHtmlXLabel = document.querySelector(".axis-label.x-label");
+    if (oldHtmlXLabel) oldHtmlXLabel.remove();
 }
 
 function prepareDataElements() {
@@ -1058,7 +1073,7 @@ function startAnimation() {
     const initialEndN = data[data.length - 1]?.n ?? 0;
     const initialMaxBaseVal = data.reduce((m, d) => Math.max(m, Number(d.val) || 0), 0);
     const initialMaxGrowthVal = Object.values(specialGrowthTargets).reduce((m, v) => Math.max(m, Number(v) || 0), 0);
-    const initialYMax = Math.max(10, Math.ceil(Math.max(initialMaxBaseVal, initialMaxGrowthVal) / 50) * 50);
+    const initialYMax = 700;
 
     config.minN = initialStartN;
     config.maxN = initialEndN;
@@ -1150,6 +1165,13 @@ function startAnimation() {
             const r = parseFloat(pt.dataset.targetRadius || "14");
             let lastGhostTime = 0;
             let ghostCount = 0;
+            const fromInt = Math.round(fromVal);
+            const toInt = Math.round(toVal);
+            const deltaInt = Math.max(0, toInt - fromInt);
+            const stepsPerSecond = 5;
+            const stepMs = 1000 / stepsPerSecond;
+            let lastStepAt = Date.now();
+            let lastDisplay = fromInt;
 
             const bumpTl = gsap.timeline({
                 onStart: () => {
@@ -1168,7 +1190,22 @@ function startAnimation() {
                     if (d) d.val = currentVal;
                     if (label) {
                         label.dataset.val = String(currentVal);
-                        label.textContent = String(Math.round(currentVal));
+                        const nowMs = Date.now();
+                        const capped = Math.min(toVal, currentVal);
+                        if (capped < toVal - 1e-6) {
+                            const desired = Math.min(toInt, Math.max(fromInt, Math.floor(capped)));
+                            if (desired > lastDisplay) {
+                                const elapsed = nowMs - lastStepAt;
+                                if (elapsed >= stepMs) {
+                                    const stepCount = Math.min(desired - lastDisplay, Math.floor(elapsed / stepMs));
+                                    lastDisplay += stepCount;
+                                    lastStepAt += stepCount * stepMs;
+                                }
+                            }
+                        } else {
+                            lastDisplay = toInt;
+                        }
+                        label.textContent = String(lastDisplay);
                         const cx = parseFloat(label.getAttribute("x"));
                         const cy = parseFloat(label.getAttribute("y"));
                         label.setAttribute("transform", `translate(${cx} ${cy}) scale(${currentScale}) translate(${-cx} ${-cy})`);
@@ -1197,8 +1234,9 @@ function startAnimation() {
                     }
                 }
             });
-            bumpTl.to(proxy, { val: peakVal, scale: 1.5, duration: 1.2, ease: "power2.out" });
-            bumpTl.to(proxy, { val: toVal, scale: 1, duration: 0.6, ease: "power2.out" });
+            const totalDur = Math.max(3.0, deltaInt / stepsPerSecond);
+            bumpTl.to(proxy, { val: peakVal, scale: 1.5, duration: totalDur * 0.7, ease: "power2.out" });
+            bumpTl.to(proxy, { val: toVal, scale: 1, duration: totalDur * 0.3, ease: "power2.out" });
             return bumpTl;
         };
 
@@ -1715,7 +1753,7 @@ function startAnimation() {
         tl.set(config, { point9Flicker: 1 }, ">");
 
         // 9 -> 10
-        tl.to(config, { n: 10, yMax: 600, duration: stepDur3, ease: "linear" }, ">");
+        tl.to(config, { n: 10, yMax: 700, duration: stepDur3, ease: "linear" }, ">");
         tl.call(() => stepPulse(10), [], ">-0.1");
 
         // 10 -> 11
