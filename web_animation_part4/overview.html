@@ -3,17 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kissing Number Animation</title>
+    <title>Kissing Number Overview</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 </head>
-<body class="dark-mode">
-    <button id="mode-toggle" class="mode-toggle">Switch to Dark Mode</button>
-    <button id="camera-toggle" class="mode-toggle camera-toggle">Camera: On</button>
-    <a class="mode-toggle overview-toggle" href="overview.html">Overview</a>
+<body class="dark-mode overview">
     <div class="container">
-        <!-- Title removed -->
-        
         <div class="chart-wrapper">
             <svg id="chart" viewBox="0 0 1200 1200" preserveAspectRatio="xMidYMid meet">
                 <g id="grid"></g>
@@ -29,13 +24,14 @@
                 
                 <g id="labels"></g>
             </svg>
-            
             <div class="axis-label y-label">Kissing Number</div>
+            <div class="axis-label x-label">Dimension <span class="math-term">(n)</span></div>
         </div>
-
         <p class="caption"></p>
     </div>
-
+    <script>
+        window.__OVERVIEW__ = true;
+    </script>
     <script src="script.js"></script>
 </body>
 </html>

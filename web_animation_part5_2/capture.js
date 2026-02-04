@@ -48,6 +48,8 @@ const path = require('path');
         process.exit(1);
     }
 
+
+
     // Force strict synchronization
     await page.evaluate(() => {
         // Disable GSAP's auto-sleep and lag smoothing
@@ -80,24 +82,19 @@ const path = require('path');
         const timing = await page.evaluate(() => {
             const tl = window.tl;
             const duration = tl.duration();
-            const fullExpandTime = typeof tl.getLabelTime === "function" ? tl.getLabelTime("fullExpand") : NaN;
-            const stepDur3 = 1.0;
-            const t14Start = Number.isFinite(fullExpandTime) ? Math.max(0, fullExpandTime - stepDur3) : 0;
-            const startTime = Math.max(0, t14Start - 0.6);
-            const endTime = duration + 1.0;
-            return { duration, startTime, endTime };
+            const labels = tl.labels || {};
+            const startTime = typeof labels.allPointsLit === "number" ? labels.allPointsLit : 0;
+            return { duration, startTime };
         });
 
-        const fps = 60;
-        const endTime = timing.endTime ?? (timing.duration + 1.0);
-        const totalFrames = Math.ceil(endTime * fps);
+        const fps = 60; // Changed from 120 to 60 to match standard web refresh rate
+        const totalFrames = Math.ceil(timing.duration * fps);
         const startFrame = Math.floor(timing.startTime * fps);
 
         console.log(
             `[${name}] Animation duration: ${timing.duration}s, ` +
-            `end at t=${endTime}s, ` +
             `capture from t=${timing.startTime}s (frame ${startFrame}), ` +
-            `Total frames: ${totalFrames - startFrame + 1}`
+            `Total frames: ${totalFrames - startFrame + 1} (FPS: ${fps})`
         );
 
         for (let i = startFrame; i <= totalFrames; i++) {
@@ -125,6 +122,7 @@ const path = require('path');
     };
 
     await captureVariant({ name: 'frames_16x9_dark', darkMode: true });
+    // await captureVariant({ name: 'frames_16x9_light', darkMode: false });
     
     console.log("Capture complete.");
     await browser.close();

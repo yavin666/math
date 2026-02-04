@@ -4,22 +4,25 @@ const data = [
     { n: 2, val: 6 }, { n: 3, val: 12 }, { n: 4, val: 24 }, { n: 5, val: 40 },
     { n: 6, val: 72 }, { n: 7, val: 126 }, { n: 8, val: 240 }, { n: 9, val: 306 },
     { n: 10, val: 500 }, { n: 11, val: 582 }, { n: 12, val: 840 }, { n: 13, val: 1154 },
-    { n: 14, val: 1932 }, { n: 15, val: 2564 }, { n: 16, val: 4320 }
+    { n: 14, val: 1932 }, { n: 15, val: 2564 }, { n: 16, val: 4320 }, { n: 17, val: 5730 },
+    { n: 18, val: 7654 }, { n: 19, val: 11692 }, { n: 20, val: 19448 },
+    { n: 21, val: 29768 }, { n: 22, val: 49896 }, { n: 23, val: 93150 }, { n: 24, val: 196560 }
 ];
 
 // Configuration
 const config = {
-    svgWidth: 2200, 
-    svgHeight: 1200, 
-    margin: { top: 240, right: 260, bottom: 420, left: 360 }, // Increased margins for labels
+    svgWidth: 3200, 
+    svgHeight: 1800, 
+    margin: { top: 140, right: 260, bottom: 320, left: 360 }, // Increased margins for labels
     colors: {
         green: "#2e7d32",
         red: "#d32f2f",
         black: "#333333" 
     },
-    yMax: 5000, 
-    n: 16, 
-    maxN: 16,
+    yMax: 450000, 
+    yExponent: 0.38,
+    n: 24, 
+    maxN: 24,
     cameraEnabled: true,
     dataAlpha: 0,
     firstValueAlpha: 0,
@@ -88,7 +91,10 @@ const yScale = (val) => {
     // Dynamic linear scale based on config.yMax
     // Ensure yMax doesn't go below a minimum to prevent division by zero or extreme zoom
     const effectiveYMax = Math.max(config.yMax, 10);
-    return baseline - (val / effectiveYMax) * h;
+    const t = Math.max(0, Math.min(1, val / effectiveYMax));
+    const exp = Number.isFinite(config.yExponent) ? config.yExponent : 1;
+    const stretched = exp === 1 ? t : Math.pow(t, exp);
+    return baseline - stretched * h;
 };
 
 const buildPathD = (arr, maxN) => {
@@ -110,11 +116,11 @@ const buildPathD = (arr, maxN) => {
             // Interpolate to current maxN if we are in the middle of a segment
             if (i > 0 && arr[i-1].n < maxN) {
                 const prev = arr[i-1];
-                // Linear interpolation
                 const ratio = (maxN - prev.n) / (p.n - prev.n);
-                const val = prev.val + (p.val - prev.val) * ratio;
                 const x = xScale(maxN);
-                const y = yScale(val);
+                const y0 = yScale(prev.val);
+                const y1 = yScale(p.val);
+                const y = y0 + (y1 - y0) * ratio;
                 dStr += ` L ${x} ${y}`;
             }
             break; // Stop
@@ -422,6 +428,14 @@ function ensureSvgDefs() {
 
 // Initialization
 function initChart() {
+    if (window.__OVERVIEW__ === true) {
+        config.n = 24;
+        config.maxN = 24;
+        config.yMax = 200000;
+        config.yExponent = 1;
+        config.cameraEnabled = false;
+    }
+
     syncSvgLayout();
     ensureCameraGroup();
     clearGroup(gridGroup);
@@ -444,38 +458,52 @@ function initChart() {
 }
 
 function drawGrid() {
-    // Horizontal Grid lines - Full range coverage for burst animation
-    const yStepsMicro = [0,  500];
-    const yStepsSmall = [1000, 1500, 2000, 2500, 3000, 4000];
-    const yStepsLarge = [5000, 10000, 15000, 20000, 50000, 100000, 150000, 200000, 250000];
-    const ySteps = [
-        ...yStepsMicro.map((v) => ({ val: v, group: "micro" })),
-        ...yStepsSmall.map((v) => ({ val: v, group: "small" })),
-        ...yStepsLarge.map((v) => ({ val: v, group: "large" }))
-    ];
+    const isOverview = window.__OVERVIEW__ === true;
+    const effectiveYMax = Math.max(config.yMax, 10);
+    const exp = Number.isFinite(config.yExponent) ? config.yExponent : 1;
 
-    ySteps.forEach(({ val, group }) => {
+    const tickValues = (() => {
+        if (isOverview) {
+            const max = 200000;
+            const step = 20000;
+            const arr = [];
+            for (let v = 0; v <= max; v += step) arr.push(v);
+            return arr;
+        }
+
+        const tickCount = 10;
+        const arr = [];
+        for (let i = 0; i <= tickCount; i++) {
+            const t = i / tickCount;
+            const valRaw = exp === 1 ? t * effectiveYMax : Math.pow(t, 1 / exp) * effectiveYMax;
+            arr.push(Math.round(valRaw));
+        }
+        return arr;
+    })();
+
+    tickValues.forEach((val) => {
         const y = yScale(val);
+
         const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
         line.setAttribute("x1", config.margin.left);
         line.setAttribute("y1", y);
         line.setAttribute("x2", config.svgWidth - config.margin.right);
         line.setAttribute("y2", y);
         line.setAttribute("class", "grid-line grid-line-h non-scaling"); 
-        line.dataset.value = val;
-        line.dataset.group = group;
+        line.dataset.value = String(val);
+        line.dataset.group = isOverview ? "overview" : "uniform";
         
         gridGroup.appendChild(line);
 
         // Y-Axis Labels
         if (val > 0) {
             const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            text.setAttribute("x", config.margin.left - 80);
+            text.setAttribute("x", config.margin.left - (isOverview ? 140 : 80));
             text.setAttribute("y", y + 4);
             text.setAttribute("text-anchor", "end");
             text.setAttribute("class", "tick-text");
-            text.dataset.value = val; 
-            text.dataset.group = group;
+            text.dataset.value = String(val); 
+            text.dataset.group = isOverview ? "overview" : "uniform";
             text.textContent = val;
             
             axesGroup.appendChild(text);
@@ -501,6 +529,7 @@ function drawGrid() {
 }
 
 function drawAxesTicks() {
+    const isOverview = window.__OVERVIEW__ === true;
     // X-Axis Ticks
     for (let i = 0; i <= 24; i++) {
         const x = xScale(i);
@@ -517,31 +546,31 @@ function drawAxesTicks() {
 
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
         text.setAttribute("x", x);
-        text.setAttribute("y", y + 50); // Increased distance
+        text.setAttribute("y", y + (isOverview ? 92 : 50)); // Increased distance
         text.setAttribute("class", "tick-text");
         text.dataset.n = i;
         text.textContent = i;
         axesGroup.appendChild(text);
     }
 
-    // Y-Axis Title (Kissing Number) - Integrated into SVG
-    const yTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    const yCenter = config.margin.top + (config.svgHeight - config.margin.top - config.margin.bottom) / 2;
-    const xPos = 60; // Left of the axis
+    if (!isOverview) {
+        const yTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        const yCenter = config.margin.top + (config.svgHeight - config.margin.top - config.margin.bottom) / 2;
+        const xPos = 60;
 
-    yTitle.setAttribute("x", xPos);
-    yTitle.setAttribute("y", yCenter);
-    yTitle.setAttribute("text-anchor", "middle");
-    yTitle.setAttribute("transform", `rotate(-90, ${xPos}, ${yCenter})`);
-    yTitle.style.fill = "var(--text-secondary)";
-    yTitle.style.fontSize = "26px";
-    yTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
-    yTitle.textContent = "Kissing Number";
-    axesGroup.appendChild(yTitle);
+        yTitle.setAttribute("x", xPos);
+        yTitle.setAttribute("y", yCenter);
+        yTitle.setAttribute("text-anchor", "middle");
+        yTitle.setAttribute("transform", `rotate(-90, ${xPos}, ${yCenter})`);
+        yTitle.style.fill = "var(--text-secondary)";
+        yTitle.style.fontSize = "18px";
+        yTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+        yTitle.textContent = "Kissing Number";
+        axesGroup.appendChild(yTitle);
 
-    // Remove old HTML label if it exists
-    const oldHtmlLabelY = document.querySelector(".axis-label.y-label");
-    if (oldHtmlLabelY) oldHtmlLabelY.remove();
+        const oldHtmlLabelY = document.querySelector(".axis-label.y-label");
+        if (oldHtmlLabelY) oldHtmlLabelY.remove();
+    }
 }
 
 function prepareDataElements() {
@@ -593,23 +622,27 @@ function prepareDataElements() {
     // Hide original single path
     linePath.style.display = "none";
 
+    const isOverview = window.__OVERVIEW__ === true;
+    const pointScale = isOverview ? 1.55 : 1;
+    const labelSizeDefault = isOverview ? "44px" : "28px";
+
     // Create Points and Labels
     data.forEach((d, i) => {
         const x = xScale(d.n);
         const y = yScale(d.val);
         
         let color = config.colors.black;
-        let r = 10;
+        let r = 10 * pointScale;
         let labelColor = config.colors.black;
         let labelWeight = "normal";
-        let labelSize = "28px";
+        let labelSize = labelSizeDefault;
 
         if (d.n === 14) {
             color = config.colors.red;
             labelColor = config.colors.red;
             labelWeight = "normal";
-            labelSize = "28px";
-            r = 12;
+            labelSize = labelSizeDefault;
+            r = 12 * pointScale;
         }
 
         // Point (reference-style: soft disk + bright core)
@@ -641,7 +674,7 @@ function prepareDataElements() {
         core.classList.add("data-point-core");
         core.setAttribute("cx", "0");
         core.setAttribute("cy", "0");
-        core.setAttribute("r", String(Math.max(4, r * 0.3)));
+        core.setAttribute("r", String(Math.max(4 * pointScale, r * 0.3)));
         g.appendChild(core);
 
         pointsGroup.appendChild(g);
@@ -674,8 +707,148 @@ function startAnimation() {
     const cameraGroup = ensureCameraGroup();
     gsap.set(chartWrapper, { x: 0, y: 0, scale: 1, transformOrigin: "50% 50%" });
 
-    const camera = { x: 0, y: 0, scale: 1 };
-    const updateCameraFromConfig = () => {};
+    if (window.__OVERVIEW__ === true) {
+        config.n = 24;
+        config.maxN = 24;
+        config.yMax = 200000;
+        config.yExponent = 1;
+        config.axesVisible = true;
+        config.dataVisible = true;
+        config.dataAlpha = 1;
+        config.firstValueAlpha = 1;
+        config.greenifyN = 24;
+        config.specialGrowthEnabled = false;
+        config.growthEmphasis = 0;
+        config.focusDim = 0;
+        config.focusDim10 = 0;
+        config.focusDim11 = 0;
+        config.growthTargetN = null;
+        config.cameraEnabled = false;
+
+        cameraGroup.removeAttribute("transform");
+        updateChartGeometry();
+        window.tl = undefined;
+        return;
+    }
+
+    const cameraScale = 5.8;
+    const camera = { x: 0, y: 0, scale: cameraScale };
+    const cameraProgress = { t: 0 };
+    const valByN = new Map(data.map((d) => [d.n, d.val]));
+
+    function getValueForN(n) {
+        const nn = Math.round(n);
+        let val = valByN.get(nn) ?? 0;
+        if (config.specialGrowthEnabled) {
+            if (nn === 10) val = specialGrowth.v10;
+            if (nn === 11) val = specialGrowth.v11;
+        }
+        return val;
+    }
+
+    const focusX = config.svgWidth * 0.5;
+    const focusY = config.svgHeight * 0.5;
+    const focusYOffset = -20;
+
+    const dist2 = (a, b) => {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    const cubicAt = (p0, p1, p2, p3, t) => {
+        const u = 1 - t;
+        const uu = u * u;
+        const tt = t * t;
+        const uuu = uu * u;
+        const ttt = tt * t;
+        return {
+            x: uuu * p0.x + 3 * uu * t * p1.x + 3 * u * tt * p2.x + ttt * p3.x,
+            y: uuu * p0.y + 3 * uu * t * p1.y + 3 * u * tt * p2.y + ttt * p3.y
+        };
+    };
+
+    const buildBezierSampler = (keypoints) => {
+        if (!keypoints || keypoints.length < 2) {
+            return { getAt: () => ({ x: camera.x, y: camera.y }) };
+        }
+
+        const segs = [];
+        const n = keypoints.length;
+        for (let i = 0; i < n - 1; i++) {
+            const p0 = keypoints[Math.max(0, i - 1)];
+            const p1 = keypoints[i];
+            const p2 = keypoints[i + 1];
+            const p3 = keypoints[Math.min(n - 1, i + 2)];
+
+            const c1 = { x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6 };
+            const c2 = { x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6 };
+            segs.push({ p0: p1, p1: c1, p2: c2, p3: p2 });
+        }
+
+        const samples = [];
+        let total = 0;
+        const stepsPerSeg = 60;
+        segs.forEach((seg, si) => {
+            for (let i = 0; i <= stepsPerSeg; i++) {
+                const tt = i / stepsPerSeg;
+                const p = cubicAt(seg.p0, seg.p1, seg.p2, seg.p3, tt);
+                if (samples.length > 0) total += dist2(samples[samples.length - 1], p);
+                samples.push({ x: p.x, y: p.y, s: total, si, tt });
+            }
+        });
+
+        const getAt = (u) => {
+            if (samples.length === 0) return { x: camera.x, y: camera.y };
+            const uu = Math.max(0, Math.min(1, u));
+            const target = uu * total;
+            let lo = 0;
+            let hi = samples.length - 1;
+            while (lo < hi) {
+                const mid = (lo + hi) >> 1;
+                if (samples[mid].s < target) lo = mid + 1;
+                else hi = mid;
+            }
+            const i1 = lo;
+            const i0 = Math.max(0, i1 - 1);
+            const a = samples[i0];
+            const b = samples[i1];
+            const ds = Math.max(1e-6, b.s - a.s);
+            const t = (target - a.s) / ds;
+            return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+        };
+
+        return { getAt };
+    };
+
+    const buildCameraKeypoints = () => {
+        const pts = [];
+        for (let n = 13; n <= 24; n++) {
+            const x = xScale(n);
+            const y = yScale(getValueForN(n));
+            pts.push({ x: focusX - x * cameraScale, y: focusY - (y + focusYOffset) * cameraScale });
+        }
+        return pts;
+    }
+
+    let cameraLastT = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+    let cameraPath = null;
+
+    function updateCameraFromConfig() {
+        if (!config.cameraEnabled) return;
+        if (!cameraPath) return;
+
+        const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        const dt = Math.max(0, now - cameraLastT);
+        cameraLastT = now;
+
+        const target = cameraPath.getAt(cameraProgress.t);
+
+        const tau = 140;
+        const a = 1 - Math.exp(-dt / tau);
+        camera.x += (target.x - camera.x) * a;
+        camera.y += (target.y - camera.y) * a;
+    }
     const applyCamera = () => {
         if (config.cameraEnabled) {
             cameraGroup.setAttribute(
@@ -696,13 +869,13 @@ function startAnimation() {
     window.tl = tl;
 
     // Initial state
-    config.n = 16.0;
-    config.yMax = 5000;
+    config.n = 24.0;
+    config.yMax = 250000;
     config.axesVisible = true;
     config.dataVisible = true;
     config.dataAlpha = 1;
     config.firstValueAlpha = 1;
-    config.greenifyN = 8;
+    config.greenifyN = 13;
     config.point4Flicker = 1;
     config.point9Flicker = 1;
     config.ticksAutoOpacity = false;
@@ -716,37 +889,15 @@ function startAnimation() {
     specialGrowth.v11 = 582;
     updateChartGeometry();
 
-    const focusCameraOnRange = (fromN, toN) => {
-        const n1 = Math.min(fromN, toN);
-        const n2 = Math.max(fromN, toN);
-        const x1 = xScale(n1);
-        const x2 = xScale(n2);
-
-        const yTop = yScale(2000);
-        const yBottom = config.svgHeight - config.margin.bottom;
-
-        const padX = (x2 - x1) * 0.18;
-        const padY = (yBottom - yTop) * 0.18;
-
-        const boxX1 = x1 - padX;
-        const boxX2 = x2 + padX;
-        const boxY1 = yTop - padY;
-        const boxY2 = yBottom + padY;
-
-        const w = Math.max(1, boxX2 - boxX1);
-        const h = Math.max(1, boxY2 - boxY1);
-        const baseScale = Math.max(0.1, Math.min(6, Math.min(config.svgWidth / w, config.svgHeight / h)));
-        const scale = Math.max(0.1, Math.min(6, baseScale * 0.82));
-
-        const cx = (boxX1 + boxX2) / 2;
-        const cy = (boxY1 + boxY2) / 2;
-        camera.scale = scale;
-        camera.x = config.svgWidth / 2 - cx * scale;
-        camera.y = config.svgHeight / 2 - cy * scale;
-    };
-
-    focusCameraOnRange(8, 14);
-    applyCamera();
+    {
+        cameraPath = buildBezierSampler(buildCameraKeypoints());
+        const startT = (14 - 13) / (24 - 13);
+        cameraProgress.t = startT;
+        const initialTarget = cameraPath.getAt(startT);
+        camera.x = initialTarget.x;
+        camera.y = initialTarget.y;
+        applyCamera();
+    }
 
     const xAxisLine = document.querySelector("#x-axis-line");
     const yAxisLine = document.querySelector("#y-axis-line");
@@ -816,7 +967,7 @@ function startAnimation() {
             }
         };
 
-        tl.call(() => stepPulse(8), [], "start");
+        tl.call(() => { stepPulse(13); stepPulse(14); }, [], "start");
         tl.to({}, { duration: 0.35 }, "start");
         tl.addLabel("captureStart9", "start+=0.35");
 
@@ -842,24 +993,19 @@ function startAnimation() {
             ease: "power2.inOut"
         }, "expandView");
 
-        // 9 -> 10 (Start AFTER transition)
-        tl.to(config, { greenifyN: 10, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(10), [], ">-0.1");
-
-        // 10 -> 11
-        tl.to(config, { greenifyN: 11, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(11), [], ">-0.1");
-
-        // 11 -> 12
-        tl.to(config, { greenifyN: 12, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(12), [], ">-0.1");
-
-        // 12 -> 13
-        tl.to(config, { greenifyN: 13, duration: stepDur3, ease: "linear" }, ">");
-        tl.call(() => stepPulse(13), [], ">-0.1");
+        tl.to(config, { greenifyN: 14, duration: stepDur3, ease: "linear" }, ">");
+        tl.call(() => stepPulse(14), [], ">-0.1");
 
         // After 14 flicker completes, continue expanding to full view
         tl.addLabel("fullExpand", ">");
+        tl.to(cameraProgress, { t: 1, duration: (24 - 14) * stepDur3 * 1.25, ease: "sine.inOut" }, "fullExpand");
+
+        for (let n = 15; n <= 24; n++) {
+            const stepIndex = n - 15;
+            const stepPos = `fullExpand+=${stepIndex * stepDur3}`;
+            tl.to(config, { greenifyN: n, duration: stepDur3, ease: "linear" }, stepPos);
+            tl.call(() => stepPulse(n), [], `fullExpand+=${stepIndex * stepDur3 + (stepDur3 - 0.1)}`);
+        }
 
         // 停止在14，不再继续向后点亮
         /*
@@ -955,25 +1101,29 @@ window.addEventListener('load', () => {
     
     // Toggle Mode
     const toggleBtn = document.getElementById("mode-toggle");
-    const syncModeToggleText = () => {
-        const isDark = document.body.classList.contains("dark-mode");
-        toggleBtn.textContent = isDark ? "Switch to Light Mode" : "Switch to Dark Mode";
-    };
-    syncModeToggleText();
-
-    toggleBtn.addEventListener("click", () => {
-        document.body.classList.toggle("dark-mode");
+    if (toggleBtn) {
+        const syncModeToggleText = () => {
+            const isDark = document.body.classList.contains("dark-mode");
+            toggleBtn.textContent = isDark ? "Switch to Light Mode" : "Switch to Dark Mode";
+        };
         syncModeToggleText();
-    });
+
+        toggleBtn.addEventListener("click", () => {
+            document.body.classList.toggle("dark-mode");
+            syncModeToggleText();
+        });
+    }
 
     const cameraBtn = document.getElementById("camera-toggle");
-    cameraBtn.textContent = config.cameraEnabled ? "Camera: On" : "Camera: Off";
-    cameraBtn.addEventListener("click", () => {
-        config.cameraEnabled = !config.cameraEnabled;
+    if (cameraBtn) {
         cameraBtn.textContent = config.cameraEnabled ? "Camera: On" : "Camera: Off";
-        if (window.tl) window.tl.kill();
-        initChart();
-    });
+        cameraBtn.addEventListener("click", () => {
+            config.cameraEnabled = !config.cameraEnabled;
+            cameraBtn.textContent = config.cameraEnabled ? "Camera: On" : "Camera: Off";
+            if (window.tl) window.tl.kill();
+            initChart();
+        });
+    }
 
     document.addEventListener("keydown", (e) => {
         if (e.key !== "h" && e.key !== "H") return;
