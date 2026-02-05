@@ -4,6 +4,8 @@ const data = [
     { n: 29, val: 208272 }, { n: 30, val: 219984 }, { n: 31, val: 232874 }
 ];
 
+const isCapture = new URLSearchParams(window.location.search).has("capture");
+
 // Configuration
 const config = {
     svgWidth: 2200, 
@@ -1921,19 +1923,18 @@ function startAnimation() {
         }, "final+=2.25");
     }
 
-    // --- PREVIEW JUMP ---
-    // tl.seek("starsComplete"); // Skipped stars
-    tl.seek("allPointsLit"); // Jump to just before stars appear for preview
-    
-    // Force update camera to match the new time
-    if (config.cameraEnabled) {
-        const nNow = config.n;
-        const vNow = valAt(nNow);
-        const next = framePointWithXAxis(nNow, vNow);
-        camera.x = next.x;
-        camera.y = next.y;
-        camera.scale = next.scale;
-        applyCamera();
+    if (!isCapture) {
+        tl.seek("allPointsLit");
+
+        if (config.cameraEnabled) {
+            const nNow = config.n;
+            const vNow = valAt(nNow);
+            const next = framePointWithXAxis(nNow, vNow);
+            camera.x = next.x;
+            camera.y = next.y;
+            camera.scale = next.scale;
+            applyCamera();
+        }
     }
 }
 

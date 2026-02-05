@@ -2,13 +2,17 @@ const ffmpegPath = require('ffmpeg-static');
 const { execFile } = require('child_process');
 const path = require('path');
 
-const framesDir = path.join(__dirname, 'frames');
-const outputFile = path.join(__dirname, 'output_with_alpha.mov');
+const framesDirName = process.argv[2] || 'frames_16x9_dark';
+const fps = Number(process.argv[3] || 60);
+const outputName = process.argv[4] || 'output_with_alpha.mov';
+
+const framesDir = path.join(__dirname, framesDirName);
+const outputFile = path.join(__dirname, outputName);
 
 console.log(`Using FFmpeg at: ${ffmpegPath}`);
 
 const args = [
-    '-framerate', '30',
+    '-framerate', String(Number.isFinite(fps) ? fps : 60),
     '-i', path.join(framesDir, 'frame_%04d.png'),
     '-c:v', 'prores_ks',
     '-profile:v', '4444',

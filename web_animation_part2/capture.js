@@ -23,6 +23,8 @@ const path = require('path');
         if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
     };
 
+    const svgOnly = process.argv.includes('--svg') || process.argv.includes('--svg-only');
+
     // 3. Launch
     const browser = await puppeteer.launch({
         executablePath,
@@ -32,9 +34,9 @@ const path = require('path');
     
     const page = await browser.newPage();
     
-    await page.setViewport({ width: 2100, height: 1080, deviceScaleFactor: 1 });
+    await page.setViewport({ width: 2200, height: 1200, deviceScaleFactor: 1 });
     
-    const url = `file://${path.join(__dirname, 'index.html').replace(/\\/g, '/')}`;
+    const url = `file://${path.join(__dirname, 'index.html').replace(/\\/g, '/')}?capture=1`;
     console.log(`Navigating to ${url}`);
     
     await page.goto(url, { waitUntil: 'networkidle0' });
@@ -48,27 +50,21 @@ const path = require('path');
         process.exit(1);
     }
 
-    // Force strict synchronization
     await page.evaluate(() => {
-        // Disable GSAP's auto-sleep and lag smoothing
-        gsap.ticker.lagSmoothing(0);
-        
-        // Stop the GSAP ticker completely
-        gsap.ticker.remove(gsap.updateRoot);
-        gsap.ticker.sleep();
-        
-        // Pause the global timeline so we can manually scrub it
-        gsap.globalTimeline.pause();
-        
-        // Ensure main timeline is unpaused locally so it responds to global scrubbing
-        if (window.tl) window.tl.paused(false);
+        const style = document.createElement("style");
+        style.textContent = `
+            *, *::before, *::after {
+                animation: none !important;
+                transition: none !important;
+            }
+        `;
+        document.head.appendChild(style);
 
-        // Disable RAF
-        window.requestAnimationFrame = () => {};
-        window.cancelAnimationFrame = () => {};
+        gsap.ticker.lagSmoothing(0);
+        gsap.globalTimeline.pause(0);
     });
 
-    const captureVariant = async ({ name, darkMode }) => {
+    const captureVariant = async ({ name, darkMode, svgOnly }) => {
         const outputDir = path.join(__dirname, name);
         ensureDir(outputDir);
 
@@ -77,37 +73,72 @@ const path = require('path');
             else document.body.classList.remove('dark-mode');
         }, darkMode);
 
-        const duration = await page.evaluate(() => window.tl.duration());
+        let svgClip = null;
+        if (svgOnly) {
+            await page.evaluate(() => {
+                const style = document.createElement("style");
+                style.textContent = `
+                    html, body { background: transparent !important; }
+                    body.dark-mode { background: transparent !important; }
+                    .container, .chart-wrapper { background: transparent !important; }
+                    #mode-toggle, #camera-toggle, .axis-label, .caption { display: none !important; }
+                `;
+                document.head.appendChild(style);
+            });
+
+            const svgHandle = await page.$('svg');
+            if (!svgHandle) throw new Error('SVG element not found for svg-only capture.');
+            const bbox = await svgHandle.boundingBox();
+            if (!bbox) throw new Error('SVG bounding box not available for svg-only capture.');
+            svgClip = {
+                x: Math.floor(bbox.x),
+                y: Math.floor(bbox.y),
+                width: Math.ceil(bbox.width),
+                height: Math.ceil(bbox.height)
+            };
+        }
+
         const fps = 60;
         // 捕获到8维点亮之后不久结束，大约在动画开始后10秒左右
         const captureUntilTime = 10.0;
-        const totalFrames = Math.ceil(captureUntilTime * fps);
+        const endTime = captureUntilTime;
+        const totalFrames = Math.ceil(endTime * fps);
+        const startFrame = 0;
         console.log(`[${name}] Capturing until ${captureUntilTime}s, Total frames: ${totalFrames}`);
+
+        await page.evaluate((fpsValue) => {
+            if (gsap?.ticker?.fps) gsap.ticker.fps(fpsValue);
+        }, fps);
 
         for (let i = 0; i <= totalFrames; i++) {
             const time = i / fps;
             await page.evaluate(async (t) => {
-                // Seek the GLOBAL timeline. This ensures that:
-                // 1. The main timeline (window.tl) moves.
-                // 2. Any side-effect animations (like halo pulses) created by callbacks 
-                //    are also scrubbed/updated correctly relative to global time.
-                gsap.globalTimeline.seek(t, false);
+                gsap.globalTimeline.time(t, false);
+                await new Promise(requestAnimationFrame);
+                await new Promise(requestAnimationFrame);
             }, time);
 
-            const filename = `frame_${String(i).padStart(4, '0')}.png`;
+            if (i < startFrame) continue;
+
+            const frameIndex = i - startFrame;
+            const filename = `frame_${String(frameIndex).padStart(4, '0')}.png`;
             const filepath = path.join(outputDir, filename);
 
-            await page.screenshot({
-                path: filepath,
-                omitBackground: false,
-                fullPage: false
-            });
+            if (svgOnly) {
+                await page.screenshot({ path: filepath, clip: svgClip, omitBackground: true });
+            } else {
+                await page.screenshot({
+                    path: filepath,
+                    omitBackground: false,
+                    fullPage: false
+                });
+            }
 
             if (i % 60 === 0) console.log(`[${name}] Saved frame ${i}/${totalFrames}`);
         }
     };
 
-    await captureVariant({ name: 'frames_16x9_dark', darkMode: true });
+    await captureVariant({ name: svgOnly ? 'frames_svg_dark' : 'frames_16x9_dark', darkMode: true, svgOnly });
     // await captureVariant({ name: 'frames_16x9_light', darkMode: false });
     
     console.log("Capture complete.");

@@ -8,6 +8,8 @@ const data = [
 const specialGrowthTargets = { 12: 81, 20: 405, 21: 567 };
 const specialStarNs = new Set([12, 20, 21]);
 
+const isCapture = new URLSearchParams(window.location.search).has("capture");
+
 // Configuration
 const config = {
     svgWidth: 2200, 
@@ -1147,7 +1149,7 @@ function startAnimation() {
         /**
          * 对指定维度执行“数字增长”动画：更新点/标签的数值并带轻微弹跳与残影。
          */
-        const raiseNumber = (n) => {
+        const raiseNumber = (n, duration) => {
             const pt = pointsGroup.querySelector(`g.data-point[data-n="${n}"]`);
             if (!pt) return;
             const targetVal = raisedVals[n];
@@ -1162,20 +1164,20 @@ function startAnimation() {
             const overshootVal = bumpHeight * pixelToDataRatio;
             const peakVal = toVal + overshootVal;
             const proxy = { val: fromVal, scale: 1 };
-            const r = parseFloat(pt.dataset.targetRadius || "14");
-            let lastGhostTime = 0;
-            let ghostCount = 0;
             const fromInt = Math.round(fromVal);
             const toInt = Math.round(toVal);
             const deltaInt = Math.max(0, toInt - fromInt);
-            const stepsPerSecond = 5;
+            const totalDur = Math.max(0.6, Number.isFinite(duration) ? duration : 1.6);
+            const stepsPerSecond = deltaInt > 0 ? Math.max(3, Math.min(60, deltaInt / totalDur)) : 30;
             const stepMs = 1000 / stepsPerSecond;
-            let lastStepAt = Date.now();
+            let lastStepAt = 0;
             let lastDisplay = fromInt;
 
             const bumpTl = gsap.timeline({
                 onStart: () => {
                     if (label) label.dataset.animLock = "1";
+                    lastStepAt = Date.now();
+                    lastDisplay = fromInt;
                 },
                 onComplete: () => {
                     if (label) {
@@ -1210,31 +1212,8 @@ function startAnimation() {
                         const cy = parseFloat(label.getAttribute("y"));
                         label.setAttribute("transform", `translate(${cx} ${cy}) scale(${currentScale}) translate(${-cx} ${-cy})`);
                     }
-                    const now = Date.now();
-                    if (now - lastGhostTime > 60 && ghostCount < 18) {
-                        lastGhostTime = now;
-                        ghostCount++;
-                        const gx = xScale(n);
-                        const gy = yScale(currentVal);
-                        const ghost = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-                        ghost.setAttribute("cx", String(gx));
-                        ghost.setAttribute("cy", String(gy));
-                        ghost.setAttribute("r", String(Math.max(3, r * 0.55)));
-                        ghost.setAttribute("fill", "white");
-                        ghost.style.opacity = "0.28";
-                        ghost.setAttribute("filter", "url(#glow-blur)");
-                        particleGroup.appendChild(ghost);
-                        gsap.to(ghost, {
-                            opacity: 0,
-                            attr: { r: Math.max(3, r * 0.55) + 4 },
-                            duration: 0.6,
-                            ease: "sine.out",
-                            onComplete: () => ghost.remove()
-                        });
-                    }
                 }
             });
-            const totalDur = Math.max(3.0, deltaInt / stepsPerSecond);
             bumpTl.to(proxy, { val: peakVal, scale: 1.5, duration: totalDur * 0.7, ease: "power2.out" });
             bumpTl.to(proxy, { val: toVal, scale: 1, duration: totalDur * 0.3, ease: "power2.out" });
             return bumpTl;
@@ -1274,19 +1253,25 @@ function startAnimation() {
         camera.scale = 1;
         applyCamera();
 
+        const totalAnimationDuration = 6.0;
         const specialNs = [12, 20, 21];
-        const holdDur = 0.6;
-        tl.to({}, { duration: holdDur }, "start");
+        const introDur = 0.3;
+        const outroDur = 0.3;
+        const slotDur = (totalAnimationDuration - introDur - outroDur) / Math.max(1, specialNs.length);
+        const growthDur = slotDur * 0.78;
+        const postStarDur = Math.max(0, slotDur - growthDur);
+
+        tl.to({}, { duration: introDur }, "start");
 
         specialNs.forEach((n) => {
             if (!Number.isFinite(raisedVals[n])) return;
-            const bumpTl = raiseNumber(n);
+            const bumpTl = raiseNumber(n, growthDur);
             if (bumpTl) tl.add(bumpTl, ">");
             tl.call(() => starify(n), [], ">");
-            tl.to({}, { duration: 0.2 }, ">");
+            tl.to({}, { duration: postStarDur }, ">");
         });
 
-        tl.to({}, { duration: 2.0 }, ">");
+        tl.to({}, { duration: outroDur }, ">");
         return;
     }
 
@@ -2102,19 +2087,18 @@ function startAnimation() {
         }, "final+=2.25");
     }
 
-    // --- PREVIEW JUMP ---
-    // tl.seek("starsComplete"); // Skipped stars
-    tl.seek("allPointsLit"); // Jump to just before stars appear for preview
-    
-    // Force update camera to match the new time
-    if (config.cameraEnabled) {
-        const nNow = config.n;
-        const vNow = valAt(nNow);
-        const next = framePointWithXAxis(nNow, vNow);
-        camera.x = next.x;
-        camera.y = next.y;
-        camera.scale = next.scale;
-        applyCamera();
+    if (!isCapture) {
+        tl.seek("allPointsLit");
+
+        if (config.cameraEnabled) {
+            const nNow = config.n;
+            const vNow = valAt(nNow);
+            const next = framePointWithXAxis(nNow, vNow);
+            camera.x = next.x;
+            camera.y = next.y;
+            camera.scale = next.scale;
+            applyCamera();
+        }
     }
 }
 
