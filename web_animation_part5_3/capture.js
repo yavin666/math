@@ -23,6 +23,8 @@ const path = require('path');
         if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
     };
 
+    const svgOnly = process.argv.includes('--svg') || process.argv.includes('--svg-only');
+
     // 3. Launch
     const browser = await puppeteer.launch({
         executablePath,
@@ -32,9 +34,9 @@ const path = require('path');
     
     const page = await browser.newPage();
     
-    await page.setViewport({ width: 2100, height: 1080, deviceScaleFactor: 1 });
+    await page.setViewport({ width: 2200, height: 1200, deviceScaleFactor: 1 });
     
-    const url = `file://${path.join(__dirname, 'index.html').replace(/\\/g, '/')}`;
+    const url = `file://${path.join(__dirname, 'index.html').replace(/\\/g, '/')}?capture=1`;
     console.log(`Navigating to ${url}`);
     
     await page.goto(url, { waitUntil: 'networkidle0' });
@@ -50,27 +52,21 @@ const path = require('path');
 
 
 
-    // Force strict synchronization
     await page.evaluate(() => {
-        // Disable GSAP's auto-sleep and lag smoothing
-        gsap.ticker.lagSmoothing(0);
-        
-        // Stop the GSAP ticker completely
-        gsap.ticker.remove(gsap.updateRoot);
-        gsap.ticker.sleep();
-        
-        // Pause the global timeline so we can manually scrub it
-        gsap.globalTimeline.pause();
-        
-        // Ensure main timeline is unpaused locally so it responds to global scrubbing
-        if (window.tl) window.tl.paused(false);
+        const style = document.createElement("style");
+        style.textContent = `
+            *, *::before, *::after {
+                animation: none !important;
+                transition: none !important;
+            }
+        `;
+        document.head.appendChild(style);
 
-        // Disable RAF
-        window.requestAnimationFrame = () => {};
-        window.cancelAnimationFrame = () => {};
+        gsap.ticker.lagSmoothing(0);
+        gsap.globalTimeline.pause(0);
     });
 
-    const captureVariant = async ({ name, darkMode }) => {
+    const captureVariant = async ({ name, darkMode, svgOnly }) => {
         const outputDir = path.join(__dirname, name);
         ensureDir(outputDir);
 
@@ -79,49 +75,79 @@ const path = require('path');
             else document.body.classList.remove('dark-mode');
         }, darkMode);
 
+        let svgClip = null;
+        if (svgOnly) {
+            await page.evaluate(() => {
+                const style = document.createElement("style");
+                style.textContent = `
+                    html, body { background: transparent !important; }
+                    body.dark-mode { background: transparent !important; }
+                    .container, .chart-wrapper { background: transparent !important; }
+                    #mode-toggle, #camera-toggle, .axis-label, .caption { display: none !important; }
+                `;
+                document.head.appendChild(style);
+            });
+
+            const svgHandle = await page.$('svg');
+            if (!svgHandle) throw new Error('SVG element not found for svg-only capture.');
+            const bbox = await svgHandle.boundingBox();
+            if (!bbox) throw new Error('SVG bounding box not available for svg-only capture.');
+            svgClip = {
+                x: Math.floor(bbox.x),
+                y: Math.floor(bbox.y),
+                width: Math.ceil(bbox.width),
+                height: Math.ceil(bbox.height)
+            };
+        }
+
         const timing = await page.evaluate(() => {
             const tl = window.tl;
             const duration = tl.duration();
             const labels = tl.labels || {};
-            const startTime = typeof labels.allPointsLit === "number" ? labels.allPointsLit : 0;
+            const captureStart = typeof labels.captureStart === "number" ? labels.captureStart : null;
+            const allPointsLit = typeof labels.allPointsLit === "number" ? labels.allPointsLit : null;
+            const startTime = (captureStart ?? allPointsLit ?? 0);
             return { duration, startTime };
         });
 
-        const fps = 60; // Changed from 120 to 60 to match standard web refresh rate
-        const totalFrames = Math.ceil(timing.duration * fps);
-        const startFrame = Math.floor(timing.startTime * fps);
+        const fps = 60;
+        const totalFrames = Math.ceil((timing.duration - timing.startTime) * fps);
 
         console.log(
             `[${name}] Animation duration: ${timing.duration}s, ` +
-            `capture from t=${timing.startTime}s (frame ${startFrame}), ` +
-            `Total frames: ${totalFrames - startFrame + 1} (FPS: ${fps})`
+            `capture from t=${timing.startTime}s, ` +
+            `Total frames: ${totalFrames + 1} (FPS: ${fps})`
         );
 
-        for (let i = startFrame; i <= totalFrames; i++) {
-            const time = i / fps;
-            await page.evaluate(async (t) => {
-                // Seek the GLOBAL timeline. This ensures that:
-                // 1. The main timeline (window.tl) moves.
-                // 2. Any side-effect animations (like halo pulses) created by callbacks 
-                //    are also scrubbed/updated correctly relative to global time.
-                gsap.globalTimeline.seek(t, false);
-            }, time);
+        await page.evaluate((fpsValue) => {
+            if (gsap?.ticker?.fps) gsap.ticker.fps(fpsValue);
+        }, fps);
 
-            const frameIndex = i - startFrame;
+        for (let frameIndex = 0; frameIndex <= totalFrames; frameIndex++) {
+            const time = timing.startTime + frameIndex / fps;
+            await page.evaluate(async (t) => {
+                gsap.globalTimeline.time(t, false);
+                await new Promise(requestAnimationFrame);
+                await new Promise(requestAnimationFrame);
+            }, time);
             const filename = `frame_${String(frameIndex).padStart(4, '0')}.png`;
             const filepath = path.join(outputDir, filename);
 
-            await page.screenshot({
-                path: filepath,
-                omitBackground: false,
-                fullPage: false
-            });
+            if (svgOnly) {
+                await page.screenshot({ path: filepath, clip: svgClip, omitBackground: true });
+            } else {
+                await page.screenshot({
+                    path: filepath,
+                    omitBackground: false,
+                    fullPage: false
+                });
+            }
 
-            if (i % 60 === 0) console.log(`[${name}] Saved frame ${i}/${totalFrames}`);
+            if (frameIndex % 60 === 0) console.log(`[${name}] Saved frame ${frameIndex}/${totalFrames}`);
         }
     };
 
-    await captureVariant({ name: 'frames_16x9_dark', darkMode: true });
+    await captureVariant({ name: svgOnly ? 'frames_svg_dark' : 'frames_16x9_dark', darkMode: true, svgOnly });
     // await captureVariant({ name: 'frames_16x9_light', darkMode: false });
     
     console.log("Capture complete.");

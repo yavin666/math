@@ -109,25 +109,25 @@ const path = require('path');
 
         const fps = 60;
         const endTime = timing.endTime ?? timing.duration;
-        const totalFrames = Math.ceil(endTime * fps);
-        const startFrame = Math.floor((timing.startTime ?? 0) * fps);
-        console.log(`[${name}] Animation duration: ${timing.duration}s, Total frames: ${totalFrames}`);
+        const startTime = timing.startTime ?? 0;
+        const totalFrames = Math.ceil((endTime - startTime) * fps);
+        console.log(
+            `[${name}] Animation duration: ${timing.duration}s, ` +
+            `capture from t=${startTime}s, ` +
+            `Total frames: ${totalFrames + 1} (FPS: ${fps})`
+        );
 
         await page.evaluate((fpsValue) => {
             if (gsap?.ticker?.fps) gsap.ticker.fps(fpsValue);
         }, fps);
 
-        for (let i = 0; i <= totalFrames; i++) {
-            const time = i / fps;
+        for (let frameIndex = 0; frameIndex <= totalFrames; frameIndex++) {
+            const time = startTime + frameIndex / fps;
             await page.evaluate(async (t) => {
                 gsap.globalTimeline.time(t, false);
                 await new Promise(requestAnimationFrame);
                 await new Promise(requestAnimationFrame);
             }, time);
-
-            if (i < startFrame) continue;
-
-            const frameIndex = i - startFrame;
             const filename = `frame_${String(frameIndex).padStart(4, '0')}.png`;
             const filepath = path.join(outputDir, filename);
 
@@ -141,7 +141,7 @@ const path = require('path');
                 });
             }
 
-            if (i % 60 === 0) console.log(`[${name}] Saved frame ${i}/${totalFrames}`);
+            if (frameIndex % 60 === 0) console.log(`[${name}] Saved frame ${frameIndex}/${totalFrames}`);
         }
     };
 

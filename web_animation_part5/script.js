@@ -1738,6 +1738,7 @@ function startAnimation() {
         }
         
         tl.addLabel("allPointsLit", `finalWave+=${waveStart + 24 * waveStep + 1.0}`);
+        tl.addLabel("captureStart", "allPointsLit");
 
         // --- NEW PHASE: Star Awakening (25-31) ---
         

@@ -1,8 +1,14 @@
 // Data Configuration
 const data = [
-    { n: 25, val: 197048 }, { n: 26, val: 198512 }, { n: 27, val: 199976 }, { n: 28, val: 204368 },
-    { n: 29, val: 208272 }, { n: 30, val: 219984 }, { n: 31, val: 232874 }
+    { n: 11, val: 68 }, { n: 12, val: 79 }, { n: 13, val: 104 }, { n: 14, val: 118 },
+    { n: 15, val: 156 }, { n: 16, val: 288 }, { n: 17, val: 292 }, { n: 18, val: 296 },
+    { n: 19, val: 308 }, { n: 20, val: 378 }, { n: 21, val: 554 }
 ];
+
+const specialGrowthTargets = { 12: 81, 20: 405, 21: 567 };
+const specialStarNs = new Set([12, 20, 21]);
+
+const isCapture = new URLSearchParams(window.location.search).has("capture");
 
 // Configuration
 const config = {
@@ -14,12 +20,12 @@ const config = {
         red: "#d32f2f",
         black: "#333333" 
     },
-    minN: 25,
+    minN: 11,
     xPad: 140,
-    yMin: 190000,
-    yMax: 240000, 
-    n: 31, 
-    maxN: 31,
+    yMin: 0,
+    yMax: 700, 
+    n: 11, 
+    maxN: 21,
     cameraEnabled: true,
     dataAlpha: 0,
     firstValueAlpha: 0,
@@ -34,10 +40,10 @@ const config = {
     focusDim11: 0,
     growthTargetN: null,
     enableFinalPhase: false,
-    minAxisN: 31 // New config for manual axis expansion
+    minAxisN: 0 // New config for manual axis expansion
 };
 
-const specialGrowth = { v10: 500, v11: 582 };
+const specialGrowth = { v12: specialGrowthTargets[12], v20: specialGrowthTargets[20], v21: specialGrowthTargets[21] };
 
 // Dimensions
 const width = config.svgWidth - config.margin.left - config.margin.right;
@@ -45,9 +51,9 @@ const height = config.svgHeight - config.margin.top - config.margin.bottom;
 
 // Scales
 const xScale = (n) => {
-    const extent = getXAxisExtentN();
     const start = config.minN ?? 0;
-    const span = Math.max(extent - start, 1);
+    const end = config.maxN ?? start + 1;
+    const span = Math.max(end - start, 1);
     const xPad = config.xPad ?? 0;
     const plotLeft = config.margin.left + xPad;
     const plotWidth = Math.max(1, width - xPad);
@@ -60,9 +66,8 @@ const xScale = (n) => {
 function getXAxisExtentN() {
     const base = config.minN ?? 0;
     const max = config.maxN ?? 24;
-    const nNow = Number.isFinite(config.n) ? config.n : 0;
     const minN = config.minAxisN ?? 0;
-    return Math.max(base, Math.min(max, nNow), minN);
+    return Math.max(base, max, minN);
 }
 
 /**
@@ -277,8 +282,9 @@ function updateChartGeometry() {
         const n = parseFloat(p.dataset.n);
         let val = parseFloat(p.dataset.val);
         if (config.specialGrowthEnabled) {
-            if (n === 10) val = specialGrowth.v10;
-            if (n === 11) val = specialGrowth.v11;
+            if (n === 12) val = specialGrowth.v12;
+            if (n === 20) val = specialGrowth.v20;
+            if (n === 21) val = specialGrowth.v21;
         }
         const x = xScale(n);
         const y = yScale(val);
@@ -312,8 +318,9 @@ function updateChartGeometry() {
         const n = parseFloat(l.dataset.n);
         let val = parseFloat(l.dataset.val);
         if (config.specialGrowthEnabled) {
-            if (n === 10) val = specialGrowth.v10;
-            if (n === 11) val = specialGrowth.v11;
+            if (n === 12) val = specialGrowth.v12;
+            if (n === 20) val = specialGrowth.v20;
+            if (n === 21) val = specialGrowth.v21;
         }
         let cx = xScale(n);
         const cy = yScale(val);
@@ -345,9 +352,11 @@ function updateChartGeometry() {
             else opacity *= (1 - 0.55 * dim);
         }
         l.style.opacity = String(opacity);
-        l.textContent = String(Math.round(val));
-        if (l.hasAttribute("transform")) {
-            l.removeAttribute("transform");
+        if (l.dataset.animLock !== "1") {
+            l.textContent = String(Math.round(val));
+            if (l.hasAttribute("transform")) {
+                l.removeAttribute("transform");
+            }
         }
     });
 
@@ -745,11 +754,21 @@ function initChart() {
 
 function drawGrid() {
     const yMin = Number.isFinite(config.yMin) ? config.yMin : 0;
-    const yTop = 240000;
-    const step = 10000;
+    const maxBaseVal = data.reduce((m, d) => Math.max(m, Number(d.val) || 0), 0);
+    const maxGrowthVal = Object.values(specialGrowthTargets).reduce((m, v) => Math.max(m, Number(v) || 0), 0);
+    const yTop = Math.max(Number.isFinite(config.yMax) ? config.yMax : 0, maxBaseVal, maxGrowthVal);
+    let step = 10000;
+    let group = "large";
+    if (yTop <= 1000) {
+        step = 50;
+        group = "micro";
+    } else if (yTop <= 10000) {
+        step = 500;
+        group = "small";
+    }
     const ySteps = [];
-    for (let v = yMin; v <= yTop; v += step) {
-        ySteps.push({ val: v, group: "large" });
+    for (let v = yMin; v <= yTop + 1e-6; v += step) {
+        ySteps.push({ val: v, group });
     }
 
     ySteps.forEach(({ val, group }) => {
@@ -837,7 +856,7 @@ function drawAxesTicks() {
     // Y-Axis Title (Kissing Number) - Integrated into SVG
     const yTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
     const yCenter = config.margin.top + (config.svgHeight - config.margin.top - config.margin.bottom) / 2;
-    const xPos = 60; // Left of the axis
+    const xPos = Math.max(20, (config.margin.left - 220)); // Closer to the Y axis
 
     yTitle.setAttribute("x", xPos);
     yTitle.setAttribute("y", yCenter);
@@ -846,12 +865,25 @@ function drawAxesTicks() {
     yTitle.style.fill = "var(--text-secondary)";
     yTitle.style.fontSize = "32px";
     yTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
-    yTitle.textContent = "Kissing Number";
+    yTitle.textContent = "Triple Sphere Kissing Number";
     axesGroup.appendChild(yTitle);
 
-    // Remove old HTML label if it exists
-    const oldHtmlLabel = document.querySelector(".axis-label.y-label");
-    if (oldHtmlLabel) oldHtmlLabel.remove();
+    const xTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    const xCenter = (config.margin.left + (config.svgWidth - config.margin.right)) / 2;
+    const axisBaselineY = config.svgHeight - config.margin.bottom;
+    xTitle.setAttribute("x", String(xCenter));
+    xTitle.setAttribute("y", String(axisBaselineY + 120));
+    xTitle.setAttribute("text-anchor", "middle");
+    xTitle.style.fill = "var(--text-secondary)";
+    xTitle.style.fontSize = "32px";
+    xTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+    xTitle.textContent = "Dimension";
+    axesGroup.appendChild(xTitle);
+
+    const oldHtmlYLabel = document.querySelector(".axis-label.y-label");
+    if (oldHtmlYLabel) oldHtmlYLabel.remove();
+    const oldHtmlXLabel = document.querySelector(".axis-label.x-label");
+    if (oldHtmlXLabel) oldHtmlXLabel.remove();
 }
 
 function prepareDataElements() {
@@ -906,14 +938,6 @@ function prepareDataElements() {
         let labelWeight = "normal";
         let labelSize = "44px";
 
-        if (d.n === 14) {
-            color = config.colors.red;
-            labelColor = config.colors.red;
-            labelWeight = "normal";
-            labelSize = "18px"; // Slightly larger highlight for 14, but still smaller than big stars
-            r = 14;
-        }
-
         // Point (reference-style: soft disk + bright core)
         const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
         g.classList.add("data-point");
@@ -946,7 +970,7 @@ function prepareDataElements() {
         core.setAttribute("r", String(Math.max(4, r * 0.5)));
         g.appendChild(core);
 
-        if (d.n >= 25) {
+        if (specialStarNs.has(d.n)) {
             const starHalo = document.createElementNS("http://www.w3.org/2000/svg", "path");
             starHalo.setAttribute("d", createStarPath(r * 2.1));
             starHalo.setAttribute("fill", "none");
@@ -1047,8 +1071,17 @@ function startAnimation() {
     };
 
     // Initial state
-    config.n = 31.0;
-    config.yMax = 240000;
+    const initialStartN = data[0]?.n ?? 0;
+    const initialEndN = data[data.length - 1]?.n ?? 0;
+    const initialMaxBaseVal = data.reduce((m, d) => Math.max(m, Number(d.val) || 0), 0);
+    const initialMaxGrowthVal = Object.values(specialGrowthTargets).reduce((m, v) => Math.max(m, Number(v) || 0), 0);
+    const initialYMax = 700;
+
+    config.minN = initialStartN;
+    config.maxN = initialEndN;
+    config.yMin = 0;
+    config.n = initialEndN;
+    config.yMax = initialYMax;
     config.axesVisible = true;
     config.dataVisible = true;
     config.dataAlpha = 1;
@@ -1064,8 +1097,9 @@ function startAnimation() {
     config.focusDim11 = 0;
     config.growthTargetN = null;
     config.shakeIntensity = 0;
-    specialGrowth.v10 = 500;
-    specialGrowth.v11 = 582;
+    specialGrowth.v12 = specialGrowthTargets[12];
+    specialGrowth.v20 = specialGrowthTargets[20];
+    specialGrowth.v21 = specialGrowthTargets[21];
     updateChartGeometry();
 
     const xAxisLine = document.querySelector("#x-axis-line");
@@ -1108,6 +1142,141 @@ function startAnimation() {
     // Removed config fade in logic
 
     tl.addLabel("phase1", "start");
+
+    if (data[0]?.n === 11 && data[data.length - 1]?.n === 21) {
+        const raisedVals = specialGrowthTargets;
+
+        /**
+         * 对指定维度执行“数字增长”动画：更新点/标签的数值并带轻微弹跳与残影。
+         */
+        const raiseNumber = (n, duration) => {
+            const pt = pointsGroup.querySelector(`g.data-point[data-n="${n}"]`);
+            if (!pt) return;
+            const targetVal = raisedVals[n];
+            if (!Number.isFinite(targetVal)) return;
+
+            const d = data.find((x) => x.n === n);
+            const label = labelsGroup.querySelector(`text.point-label[data-n="${n}"]`);
+            const fromVal = parseFloat(pt.dataset.val || (d ? String(d.val) : "0"));
+            const toVal = Math.max(fromVal, targetVal);
+            const bumpHeight = 30;
+            const pixelToDataRatio = (config.yMax - (config.yMin || 0)) / (config.svgHeight - config.margin.top - config.margin.bottom);
+            const overshootVal = bumpHeight * pixelToDataRatio;
+            const peakVal = toVal + overshootVal;
+            const proxy = { val: fromVal, scale: 1 };
+            const fromInt = Math.round(fromVal);
+            const toInt = Math.round(toVal);
+            const deltaInt = Math.max(0, toInt - fromInt);
+            const totalDur = Math.max(0.6, Number.isFinite(duration) ? duration : 1.6);
+            const stepsPerSecond = deltaInt > 0 ? Math.max(3, Math.min(60, deltaInt / totalDur)) : 30;
+            const stepMs = 1000 / stepsPerSecond;
+            let lastStepAt = 0;
+            let lastDisplay = fromInt;
+
+            const bumpTl = gsap.timeline({
+                onStart: () => {
+                    if (label) label.dataset.animLock = "1";
+                    lastStepAt = Date.now();
+                    lastDisplay = fromInt;
+                },
+                onComplete: () => {
+                    if (label) {
+                        delete label.dataset.animLock;
+                        if (label.hasAttribute("transform")) label.removeAttribute("transform");
+                    }
+                },
+                onUpdate: () => {
+                    const currentVal = proxy.val;
+                    const currentScale = proxy.scale;
+                    pt.dataset.val = String(currentVal);
+                    if (d) d.val = currentVal;
+                    if (label) {
+                        label.dataset.val = String(currentVal);
+                        const nowMs = Date.now();
+                        const capped = Math.min(toVal, currentVal);
+                        if (capped < toVal - 1e-6) {
+                            const desired = Math.min(toInt, Math.max(fromInt, Math.floor(capped)));
+                            if (desired > lastDisplay) {
+                                const elapsed = nowMs - lastStepAt;
+                                if (elapsed >= stepMs) {
+                                    const stepCount = Math.min(desired - lastDisplay, Math.floor(elapsed / stepMs));
+                                    lastDisplay += stepCount;
+                                    lastStepAt += stepCount * stepMs;
+                                }
+                            }
+                        } else {
+                            lastDisplay = toInt;
+                        }
+                        label.textContent = String(lastDisplay);
+                        const cx = parseFloat(label.getAttribute("x"));
+                        const cy = parseFloat(label.getAttribute("y"));
+                        label.setAttribute("transform", `translate(${cx} ${cy}) scale(${currentScale}) translate(${-cx} ${-cy})`);
+                    }
+                }
+            });
+            bumpTl.to(proxy, { val: peakVal, scale: 1.5, duration: totalDur * 0.7, ease: "power2.out" });
+            bumpTl.to(proxy, { val: toVal, scale: 1, duration: totalDur * 0.3, ease: "power2.out" });
+            return bumpTl;
+        };
+
+        /**
+         * 对指定维度执行“星星”形态的显现动画（仅对已创建星星元素的点生效）。
+         */
+        const starify = (n) => {
+            const pt = pointsGroup.querySelector(`g.data-point[data-n="${n}"]`);
+            if (!pt) return;
+            if (pt.classList.contains("star-point")) return;
+            pt.classList.add("star-point");
+            const ring = pt.querySelector(".data-point-ring");
+            const halo = pt.querySelector(".data-point-halo");
+            const core = pt.querySelector(".data-point-core");
+            const starHalo = pt.querySelector(".star-halo");
+            const star = pt.querySelector(".star-main");
+            const r = parseFloat(pt.dataset.targetRadius || "14");
+            if (core) gsap.to(core, { attr: { r: Math.max(2, r * 0.2) }, duration: 0.22, ease: "power1.out" });
+            if (ring) gsap.to(ring, { opacity: 0, duration: 0.18, ease: "power1.out" });
+            if (halo) gsap.to(halo, { opacity: 0, duration: 0.18, ease: "power1.out" });
+            if (starHalo) {
+                const glowTl = gsap.timeline();
+                glowTl.set(starHalo, { scale: 1.06 });
+                glowTl.to(starHalo, { opacity: 0.6, duration: 0.16, ease: "power1.out" })
+                      .to(starHalo, { opacity: 0.32, duration: 0.28, ease: "sine.out" });
+            }
+            if (star) {
+                gsap.fromTo(star, { opacity: 0, scale: 0.95 }, { opacity: 1, scale: 1, duration: 0.25, ease: "power1.out" });
+            }
+        };
+
+        cameraMode = "locked";
+        camera.x = 0;
+        camera.y = 0;
+        camera.scale = 1;
+        applyCamera();
+
+        const totalAnimationDuration = 6.0;
+        const specialNs = [12, 20, 21];
+        const introDur = 0.9;
+        const outroDur = 0.4;
+        tl.addLabel("captureStart", "start");
+        tl.addLabel("allPointsLit", "start");
+        const slotDur = (totalAnimationDuration - introDur - outroDur) / Math.max(1, specialNs.length);
+        const growthDur = slotDur * 0.78;
+        const postStarDur = Math.max(0, slotDur - growthDur);
+
+        tl.to({}, { duration: introDur }, "start");
+        tl.addLabel("animStart", ">");
+
+        specialNs.forEach((n) => {
+            if (!Number.isFinite(raisedVals[n])) return;
+            const bumpTl = raiseNumber(n, growthDur);
+            if (bumpTl) tl.add(bumpTl, ">");
+            tl.call(() => starify(n), [], ">");
+            tl.to({}, { duration: postStarDur }, ">");
+        });
+
+        tl.to({}, { duration: outroDur }, ">");
+        return;
+    }
 
     if (data[0]?.n >= 25) {
         const raisedVals = {
@@ -1572,7 +1741,7 @@ function startAnimation() {
         tl.set(config, { point9Flicker: 1 }, ">");
 
         // 9 -> 10
-        tl.to(config, { n: 10, yMax: 600, duration: stepDur3, ease: "linear" }, ">");
+        tl.to(config, { n: 10, yMax: 700, duration: stepDur3, ease: "linear" }, ">");
         tl.call(() => stepPulse(10), [], ">-0.1");
 
         // 10 -> 11
@@ -1921,19 +2090,18 @@ function startAnimation() {
         }, "final+=2.25");
     }
 
-    // --- PREVIEW JUMP ---
-    // tl.seek("starsComplete"); // Skipped stars
-    tl.seek("allPointsLit"); // Jump to just before stars appear for preview
-    
-    // Force update camera to match the new time
-    if (config.cameraEnabled) {
-        const nNow = config.n;
-        const vNow = valAt(nNow);
-        const next = framePointWithXAxis(nNow, vNow);
-        camera.x = next.x;
-        camera.y = next.y;
-        camera.scale = next.scale;
-        applyCamera();
+    if (!isCapture) {
+        tl.seek("allPointsLit");
+
+        if (config.cameraEnabled) {
+            const nNow = config.n;
+            const vNow = valAt(nNow);
+            const next = framePointWithXAxis(nNow, vNow);
+            camera.x = next.x;
+            camera.y = next.y;
+            camera.scale = next.scale;
+            applyCamera();
+        }
     }
 }
 

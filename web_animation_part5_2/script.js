@@ -1255,13 +1255,16 @@ function startAnimation() {
 
         const totalAnimationDuration = 6.0;
         const specialNs = [12, 20, 21];
-        const introDur = 0.3;
-        const outroDur = 0.3;
+        const introDur = 0.9;
+        const outroDur = 0.4;
+        tl.addLabel("captureStart", "start");
+        tl.addLabel("allPointsLit", "start");
         const slotDur = (totalAnimationDuration - introDur - outroDur) / Math.max(1, specialNs.length);
         const growthDur = slotDur * 0.78;
         const postStarDur = Math.max(0, slotDur - growthDur);
 
         tl.to({}, { duration: introDur }, "start");
+        tl.addLabel("animStart", ">");
 
         specialNs.forEach((n) => {
             if (!Number.isFinite(raisedVals[n])) return;
