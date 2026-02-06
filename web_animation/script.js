@@ -139,19 +139,28 @@ function updateChartGeometry() {
 
     const yTicks = axesGroup.querySelectorAll("text.tick-text[data-value]");
     yTicks.forEach((t) => {
+        if (!config.axesVisible) {
+            t.style.opacity = "0";
+            return;
+        }
         const val = parseFloat(t.dataset.value);
         const y = yScale(val) + 5;
         t.setAttribute("y", String(y));
         
         const isTooHigh = y < config.margin.top;
-        const isTooLow = val > 0 && y > (config.svgHeight - config.margin.bottom - 40); 
-        const isHiddenLowValue = config.n >= 10 && val < 500;
+        const isTooLow = val > 0 && y > (config.svgHeight - config.margin.bottom - 40);
+        const axisBaselineY = config.svgHeight - config.margin.bottom;
+        const distToBaseline = axisBaselineY - y;
+        const isLowValue = val > 0 && val < 500;
+        const fadeByY = isLowValue ? Math.max(0, Math.min(1, distToBaseline / 90)) : 1;
+        const fadeByN = isLowValue ? (1 - Math.max(0, Math.min(1, (config.n - 9.7) / 0.6))) : 1;
+        const lowValueFade = fadeByY * fadeByN;
         
         if (config.ticksAutoOpacity) {
             const group = t.dataset.group;
-            const baseOpacity = (isTooHigh || isTooLow || isHiddenLowValue) ? 0 : 1;
+            const baseOpacity = (isTooHigh || (!isLowValue && isTooLow)) ? 0 : 1;
             const groupOpacity = (group === "micro" || group === "small") ? smallFactor : (group === "large" ? largeFactor : 1);
-            t.style.opacity = String(baseOpacity * groupOpacity);
+            t.style.opacity = String(baseOpacity * groupOpacity * (isLowValue ? lowValueFade : 1));
         }
     });
 
@@ -540,6 +549,40 @@ function drawAxesTicks() {
         text.textContent = i;
         axesGroup.appendChild(text);
     }
+
+    const yTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    const yCenter = config.margin.top + (config.svgHeight - config.margin.top - config.margin.bottom) / 2;
+    const xPos = 60;
+
+    yTitle.setAttribute("x", xPos);
+    yTitle.setAttribute("y", yCenter);
+    yTitle.setAttribute("text-anchor", "middle");
+    yTitle.setAttribute("transform", `rotate(-90, ${xPos}, ${yCenter})`);
+    yTitle.style.fill = "var(--text-secondary)";
+    yTitle.style.fontSize = "26px";
+    yTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+    yTitle.classList.add("axis-title", "axis-title-y");
+    yTitle.textContent = "Kissing Number";
+    axesGroup.appendChild(yTitle);
+
+    const xTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    const xCenter = config.margin.left + (config.svgWidth - config.margin.left - config.margin.right) / 2;
+    const yPosLabel = config.svgHeight - config.margin.bottom + 140;
+
+    xTitle.setAttribute("x", xCenter);
+    xTitle.setAttribute("y", yPosLabel);
+    xTitle.setAttribute("text-anchor", "middle");
+    xTitle.style.fill = "var(--text-secondary)";
+    xTitle.style.fontSize = "26px";
+    xTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+    xTitle.classList.add("axis-title", "axis-title-x");
+    xTitle.textContent = "Dimension";
+    axesGroup.appendChild(xTitle);
+
+    const oldHtmlLabelY = document.querySelector(".axis-label.y-label");
+    if (oldHtmlLabelY) oldHtmlLabelY.remove();
+    const oldHtmlLabelX = document.querySelector(".axis-label.x-label");
+    if (oldHtmlLabelX) oldHtmlLabelX.remove();
 }
 
 function prepareDataElements() {
@@ -725,62 +768,50 @@ function startAnimation() {
     const yGrid = Array.from(gridGroup.querySelectorAll("line.grid-line-h"));
     gsap.set([yTicks, yGrid], { opacity: 0 });
 
-    const yTicksMicro = yTicks
-        .filter((el) => el.dataset.group === "micro")
-        .sort((a, b) => parseFloat(a.dataset.value) - parseFloat(b.dataset.value));
-    const yGridMicro = yGrid
-        .filter((el) => el.dataset.group === "micro")
-        .sort((a, b) => parseFloat(a.dataset.value) - parseFloat(b.dataset.value));
+    const yTicksOrdered = yTicks
+        .slice()
+        .sort((a, b) => parseFloat(b.getAttribute("y")) - parseFloat(a.getAttribute("y")));
+    const yGridOrdered = yGrid
+        .slice()
+        .sort((a, b) => parseFloat(b.getAttribute("y1")) - parseFloat(a.getAttribute("y1")));
 
-    const yTicksNonMicro = yTicks.filter((el) => el.dataset.group !== "micro");
-    const yGridNonMicro = yGrid.filter((el) => el.dataset.group !== "micro");
+    const axisTitles = axesGroup.querySelectorAll("text.axis-title");
+    gsap.set(axisTitles, { opacity: 0 });
 
     gsap.set(xAxisLine, { attr: { x2: config.margin.left } });
+    gsap.set(yAxisLine, { attr: { y2: axisBaselineY } });
     // Use fromTo in the timeline to ensure robust start state for Y-axis
 
     // Animation Sequence
     // 0. Axes Entrance (Lines appear first)
     tl.to(xAxisLine, { duration: 1.5, attr: { x2: xAxisX2 }, ease: "power2.out" })
-      // X Ticks: Appear from left to right, following the line
-      .to([xTickLines, xTicks], { 
-          duration: 0.5, 
-          opacity: 1, 
-          stagger: 0.03, // Staggered appearance
-          ease: "power1.out" 
-      }, "<0.1") // Start shortly after line starts
-
-      // Micro Y ticks (<=500): bottom -> top, together with X ticks
-      .to(yGridMicro, { duration: 0.5, opacity: 1, stagger: 0.06, ease: "power1.out" }, "<")
-      .to(yTicksMicro, { duration: 0.5, opacity: 1, stagger: 0.06, ease: "power1.out" }, "<")
-      
-      .fromTo(yAxisLine, 
-          { attr: { y2: axisBaselineY } }, 
-          { duration: 1.0, attr: { y2: yAxisY2 }, ease: "power2.out" }, 
-          "<"
-      )
-      
-      // Y Ticks: Fade in
-      .to(yGridNonMicro, { duration: 0.5, opacity: 1, stagger: 0.05 }, "<0.2")
-      .to(yTicksNonMicro, { duration: 0.5, opacity: 1, stagger: 0.05 }, "<");
+      .to(yAxisLine, { duration: 1.0, attr: { y2: yAxisY2 }, ease: "power2.out" }, "<");
     
     tl.addLabel("afterAxes");
+
+    tl.call(() => {
+        config.axesVisible = true;
+        config.dataVisible = true;
+        config.dataAlpha = 0;
+        config.firstValueAlpha = 0;
+    }, [], "afterAxes");
+
+    tl.to([xTickLines, xTicks], { 
+        duration: 0.5, 
+        opacity: 1, 
+        stagger: 0.03,
+        ease: "power1.out" 
+    }, "afterAxes")
+      .to(yGridOrdered, { duration: 0.7, opacity: 1, stagger: 0.04, ease: "power1.out" }, "afterAxes")
+      .to(yTicksOrdered, { duration: 0.7, opacity: 1, stagger: 0.04, ease: "power1.out" }, "afterAxes")
+      .to(axisTitles, { duration: 0.5, opacity: 1, ease: "power1.out" }, "afterAxes+=0.25");
      
     // 0.5 Reveal Ticks (X and Y axis ticks fade in) - REMOVED (Handled above)
-    tl.to(config, {
-        duration: 0.1,
-        onStart: () => {
-            config.axesVisible = true;
-            config.dataVisible = true;
-            config.dataAlpha = 0;
-            config.firstValueAlpha = 0;
-        }
-    });
-
     tl.to(config, {
         dataAlpha: 1,
         duration: 0.6,
         ease: "power1.out"
-    }, "<+0.05");
+    }, "afterAxes+=0.05");
     
     tl.to(config, {
         firstValueAlpha: 1,

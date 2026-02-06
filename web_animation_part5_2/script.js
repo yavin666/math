@@ -865,7 +865,7 @@ function drawAxesTicks() {
     yTitle.style.fill = "var(--text-secondary)";
     yTitle.style.fontSize = "32px";
     yTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
-    yTitle.textContent = "Triple Sphere Kissing Number";
+    yTitle.textContent = "Triple-Sphere Kissing Number";
     axesGroup.appendChild(yTitle);
 
     const xTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");

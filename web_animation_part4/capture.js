@@ -24,6 +24,12 @@ const path = require('path');
     };
 
     const svgOnly = process.argv.includes('--svg') || process.argv.includes('--svg-only');
+    const useOverview = process.argv.includes('--overview');
+    const still = process.argv.includes('--still') || process.argv.includes('--single');
+    const timeArg = process.argv.find((a) => a.startsWith('--time='));
+    const stillTime = timeArg ? Number(timeArg.slice('--time='.length)) : null;
+    const outArg = process.argv.find((a) => a.startsWith('--out='));
+    const outPath = outArg ? outArg.slice('--out='.length) : null;
 
     // 3. Launch
     const browser = await puppeteer.launch({
@@ -36,18 +42,31 @@ const path = require('path');
     
     await page.setViewport({ width: 2200, height: 1200, deviceScaleFactor: 1 });
     
-    const url = `file://${path.join(__dirname, 'index.html').replace(/\\/g, '/')}?capture=1`;
+    const htmlFile = useOverview ? 'overview.html' : 'index.html';
+    const url = `file://${path.join(__dirname, htmlFile).replace(/\\/g, '/')}?capture=1`;
     console.log(`Navigating to ${url}`);
     
     await page.goto(url, { waitUntil: 'networkidle0' });
     
-    // 4. Wait for GSAP timeline
-    try {
-        await page.waitForFunction('window.tl !== undefined', { timeout: 5000 });
-    } catch (e) {
-        console.error("Timeline (window.tl) not found.");
-        await browser.close();
-        process.exit(1);
+    if (!(useOverview && still)) {
+        try {
+            await page.waitForFunction('window.tl !== undefined', { timeout: 5000 });
+        } catch (e) {
+            console.error("Timeline (window.tl) not found.");
+            await browser.close();
+            process.exit(1);
+        }
+    } else {
+        try {
+            await page.waitForFunction(
+                'document.querySelector("#chart") && document.querySelector("#points") && document.querySelector("#points").children.length > 0',
+                { timeout: 5000 }
+            );
+        } catch (e) {
+            console.error("Overview chart not ready.");
+            await browser.close();
+            process.exit(1);
+        }
     }
 
     await page.evaluate(() => {
@@ -98,16 +117,19 @@ const path = require('path');
             };
         }
 
-        const timing = await page.evaluate(() => {
-            const tl = window.tl;
-            const duration = tl.duration();
-            const fullExpandTime = typeof tl.getLabelTime === "function" ? tl.getLabelTime("fullExpand") : NaN;
-            const stepDur3 = 1.0;
-            const t14Start = Number.isFinite(fullExpandTime) ? Math.max(0, fullExpandTime - stepDur3) : 0;
-            const startTime = Math.max(0, t14Start - 0.6);
-            const endTime = duration + 1.0;
-            return { duration, startTime, endTime };
-        });
+        const timing = (still && useOverview)
+            ? { duration: 0, startTime: 0, endTime: 0, stillTimeDefault: 0 }
+            : await page.evaluate(() => {
+                const tl = window.tl;
+                const duration = tl.duration();
+                const fullExpandTime = typeof tl.getLabelTime === "function" ? tl.getLabelTime("fullExpand") : NaN;
+                const stepDur3 = 1.0;
+                const t14Start = Number.isFinite(fullExpandTime) ? Math.max(0, fullExpandTime - stepDur3) : 0;
+                const startTime = Math.max(0, t14Start - 0.6);
+                const endTime = duration + 1.0;
+                const stillTimeDefault = Number.isFinite(fullExpandTime) ? Math.min(duration, fullExpandTime) : duration;
+                return { duration, startTime, endTime, stillTimeDefault };
+            });
 
         const fps = 60;
         const endTime = timing.endTime ?? (timing.duration + 1.0);
@@ -123,6 +145,37 @@ const path = require('path');
         await page.evaluate((fpsValue) => {
             if (gsap?.ticker?.fps) gsap.ticker.fps(fpsValue);
         }, fps);
+
+        if (still) {
+            const time = Number.isFinite(stillTime) ? stillTime : timing.stillTimeDefault;
+            if (!(useOverview && still)) {
+                await page.evaluate(async (t) => {
+                    gsap.globalTimeline.time(t, false);
+                    await new Promise(requestAnimationFrame);
+                    await new Promise(requestAnimationFrame);
+                }, time);
+            } else {
+                await page.evaluate(async () => {
+                    await new Promise(requestAnimationFrame);
+                    await new Promise(requestAnimationFrame);
+                });
+            }
+
+            const filename = outPath
+                ? outPath
+                : (useOverview
+                    ? (svgOnly ? 'overview_svg.png' : 'overview.png')
+                    : (svgOnly ? 'still_svg.png' : 'still.png'));
+            const filepath = path.isAbsolute(filename) ? filename : path.join(__dirname, filename);
+
+            if (svgOnly) {
+                await page.screenshot({ path: filepath, clip: svgClip, omitBackground: true });
+            } else {
+                await page.screenshot({ path: filepath, omitBackground: false, fullPage: false });
+            }
+            console.log(`[${name}] Saved still frame at t=${time}s -> ${filepath}`);
+            return;
+        }
 
         for (let frameIndex = 0; frameIndex <= totalFrames; frameIndex++) {
             const time = timing.startTime + frameIndex / fps;

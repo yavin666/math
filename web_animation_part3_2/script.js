@@ -3,7 +3,7 @@ const data = [
     { n: 1, val: 2 },
     { n: 2, val: 6 }, { n: 3, val: 12 }, { n: 4, val: 24 }, { n: 5, val: 40 },
     { n: 6, val: 72 }, { n: 7, val: 126 }, { n: 8, val: 240 }, { n: 9, val: 306 },
-    { n: 10, val: 500 }, { n: 11, val: 582 }, { n: 12, val: 840 }, { n: 13, val: 1154 },
+    { n: 10, val: 510 }, { n: 11, val: 592 }, { n: 12, val: 840 }, { n: 13, val: 1154 },
     { n: 14, val: 1932 }, { n: 15, val: 2564 }, { n: 16, val: 4320 }
 ];
 
@@ -539,9 +539,24 @@ function drawAxesTicks() {
     yTitle.textContent = "Kissing Number";
     axesGroup.appendChild(yTitle);
 
+    const xTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    const xCenter = config.margin.left + (config.svgWidth - config.margin.left - config.margin.right) / 2;
+    const yPosLabel = config.svgHeight - config.margin.bottom + 140;
+
+    xTitle.setAttribute("x", xCenter);
+    xTitle.setAttribute("y", yPosLabel);
+    xTitle.setAttribute("text-anchor", "middle");
+    xTitle.style.fill = "var(--text-secondary)";
+    xTitle.style.fontSize = "26px";
+    xTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+    xTitle.textContent = "Dimension";
+    axesGroup.appendChild(xTitle);
+
     // Remove old HTML label if it exists
     const oldHtmlLabelY = document.querySelector(".axis-label.y-label");
     if (oldHtmlLabelY) oldHtmlLabelY.remove();
+    const oldHtmlLabelX = document.querySelector(".axis-label.x-label");
+    if (oldHtmlLabelX) oldHtmlLabelX.remove();
 }
 
 function prepareDataElements() {

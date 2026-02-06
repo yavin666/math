@@ -839,7 +839,7 @@ function drawAxesTicks() {
     // Y-Axis Title (Kissing Number) - Integrated into SVG
     const yTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
     const yCenter = config.margin.top + (config.svgHeight - config.margin.top - config.margin.bottom) / 2;
-    const xPos = 60; // Left of the axis
+    const xPos = Math.max(20, (config.margin.left - 220));
 
     yTitle.setAttribute("x", xPos);
     yTitle.setAttribute("y", yCenter);
@@ -851,9 +851,23 @@ function drawAxesTicks() {
     yTitle.textContent = "Kissing Number";
     axesGroup.appendChild(yTitle);
 
+    const xTitle = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    const xCenter = (config.margin.left + (config.svgWidth - config.margin.right)) / 2;
+    const axisBaselineY = config.svgHeight - config.margin.bottom;
+    xTitle.setAttribute("x", String(xCenter));
+    xTitle.setAttribute("y", String(axisBaselineY + 120));
+    xTitle.setAttribute("text-anchor", "middle");
+    xTitle.style.fill = "var(--text-secondary)";
+    xTitle.style.fontSize = "32px";
+    xTitle.style.fontFamily = '"Helvetica Neue", Helvetica, Arial, sans-serif';
+    xTitle.textContent = "Dimension";
+    axesGroup.appendChild(xTitle);
+
     // Remove old HTML label if it exists
     const oldHtmlLabel = document.querySelector(".axis-label.y-label");
     if (oldHtmlLabel) oldHtmlLabel.remove();
+    const oldHtmlXLabel = document.querySelector(".axis-label.x-label");
+    if (oldHtmlXLabel) oldHtmlXLabel.remove();
 }
 
 function prepareDataElements() {
@@ -1119,7 +1133,7 @@ function startAnimation() {
             28: 204520,
             29: 209496,
             30: 220440,
-            31: 238078
+            31: 238350
         };
 
         const raiseNumber = (n) => {
@@ -1137,8 +1151,6 @@ function startAnimation() {
                 const peakVal = toVal + overshootVal;
                 const proxy = { val: fromVal, yOffset: 0, scale: 1 };
                 const r = parseFloat(pt.dataset.targetRadius || "14");
-                let lastGhostTime = 0;
-                let ghostCount = 0;
                 const bumpTl = gsap.timeline({
                     onUpdate: () => {
                         const currentVal = proxy.val;
@@ -1151,28 +1163,6 @@ function startAnimation() {
                             const cx = parseFloat(label.getAttribute("x"));
                             const cy = parseFloat(label.getAttribute("y"));
                             label.setAttribute("transform", `translate(${cx} ${cy}) scale(${currentScale}) translate(${-cx} ${-cy})`);
-                        }
-                        const now = Date.now();
-                        if (now - lastGhostTime > 60 && ghostCount < 18) {
-                            lastGhostTime = now;
-                            ghostCount++;
-                            const gx = xScale(n);
-                            const gy = yScale(currentVal);
-                            const ghost = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-                            ghost.setAttribute("cx", String(gx));
-                            ghost.setAttribute("cy", String(gy));
-                            ghost.setAttribute("r", String(Math.max(3, r * 0.55)));
-                            ghost.setAttribute("fill", "white");
-                            ghost.style.opacity = "0.28";
-                            ghost.setAttribute("filter", "url(#glow-blur)");
-                            particleGroup.appendChild(ghost);
-                            gsap.to(ghost, {
-                                opacity: 0,
-                                attr: { r: Math.max(3, r * 0.55) + 4 },
-                                duration: 0.6,
-                                ease: "sine.out",
-                                onComplete: () => ghost.remove()
-                            });
                         }
                     }
                 });
