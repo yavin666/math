@@ -1,12 +1,11 @@
 // Data Configuration
 const data = [
-    { n: 11, val: 68 }, { n: 12, val: 79 }, { n: 13, val: 104 }, { n: 14, val: 118 },
-    { n: 15, val: 156 }, { n: 16, val: 288 }, { n: 17, val: 292 }, { n: 18, val: 296 },
-    { n: 19, val: 308 }, { n: 20, val: 378 }, { n: 21, val: 554 }
+    { n: 11, val: 156 }, { n: 12, val: 168 }, { n: 13, val: 208 }, { n: 14, val: 240 },
+    { n: 15, val: 320 }, { n: 16, val: 512 }, { n: 17, val: 546 }, { n: 18, val: 672 }
 ];
 
-const specialGrowthTargets = { 12: 81, 20: 405, 21: 567 };
-const specialStarNs = new Set([12, 20, 21]);
+const specialGrowthTargets = { 14: 252, 17: 578 };
+const specialStarNs = new Set([14, 17]);
 
 const isCapture = new URLSearchParams(window.location.search).has("capture");
 
@@ -25,7 +24,7 @@ const config = {
     yMin: 0,
     yMax: 700, 
     n: 11, 
-    maxN: 21,
+    maxN: 18,
     cameraEnabled: true,
     dataAlpha: 0,
     firstValueAlpha: 0,
@@ -43,7 +42,7 @@ const config = {
     minAxisN: 0 // New config for manual axis expansion
 };
 
-const specialGrowth = { v12: specialGrowthTargets[12], v20: specialGrowthTargets[20], v21: specialGrowthTargets[21] };
+const specialGrowth = { v14: specialGrowthTargets[14], v17: specialGrowthTargets[17] };
 
 // Dimensions
 const width = config.svgWidth - config.margin.left - config.margin.right;
@@ -282,9 +281,8 @@ function updateChartGeometry() {
         const n = parseFloat(p.dataset.n);
         let val = parseFloat(p.dataset.val);
         if (config.specialGrowthEnabled) {
-            if (n === 12) val = specialGrowth.v12;
-            if (n === 20) val = specialGrowth.v20;
-            if (n === 21) val = specialGrowth.v21;
+            if (n === 14) val = specialGrowth.v14;
+            if (n === 17) val = specialGrowth.v17;
         }
         const x = xScale(n);
         const y = yScale(val);
@@ -318,9 +316,8 @@ function updateChartGeometry() {
         const n = parseFloat(l.dataset.n);
         let val = parseFloat(l.dataset.val);
         if (config.specialGrowthEnabled) {
-            if (n === 12) val = specialGrowth.v12;
-            if (n === 20) val = specialGrowth.v20;
-            if (n === 21) val = specialGrowth.v21;
+            if (n === 14) val = specialGrowth.v14;
+            if (n === 17) val = specialGrowth.v17;
         }
         let cx = xScale(n);
         const cy = yScale(val);
@@ -1097,9 +1094,8 @@ function startAnimation() {
     config.focusDim11 = 0;
     config.growthTargetN = null;
     config.shakeIntensity = 0;
-    specialGrowth.v12 = specialGrowthTargets[12];
-    specialGrowth.v20 = specialGrowthTargets[20];
-    specialGrowth.v21 = specialGrowthTargets[21];
+    specialGrowth.v14 = specialGrowthTargets[14];
+    specialGrowth.v17 = specialGrowthTargets[17];
     updateChartGeometry();
 
     const xAxisLine = document.querySelector("#x-axis-line");
@@ -1143,7 +1139,7 @@ function startAnimation() {
 
     tl.addLabel("phase1", "start");
 
-    if (data[0]?.n === 11 && data[data.length - 1]?.n === 21) {
+    if (data[0]?.n === 11 && data[data.length - 1]?.n === 18) {
         const raisedVals = specialGrowthTargets;
 
         /**
@@ -1168,8 +1164,7 @@ function startAnimation() {
             const toInt = Math.round(toVal);
             const deltaInt = Math.max(0, toInt - fromInt);
             const totalDur = Math.max(0.6, Number.isFinite(duration) ? duration : 1.6);
-            const stepsPerSecond = deltaInt > 0 ? Math.max(3, Math.min(60, deltaInt / totalDur)) : 30;
-            const stepMs = 1000 / stepsPerSecond;
+            const stepMs = deltaInt > 0 ? (totalDur * 1000) / deltaInt : 0;
             let lastStepAt = 0;
             let lastDisplay = fromInt;
 
@@ -1199,9 +1194,8 @@ function startAnimation() {
                             if (desired > lastDisplay) {
                                 const elapsed = nowMs - lastStepAt;
                                 if (elapsed >= stepMs) {
-                                    const stepCount = Math.min(desired - lastDisplay, Math.floor(elapsed / stepMs));
-                                    lastDisplay += stepCount;
-                                    lastStepAt += stepCount * stepMs;
+                                    lastDisplay += 1;
+                                    lastStepAt += stepMs;
                                 }
                             }
                         } else {
@@ -1254,13 +1248,13 @@ function startAnimation() {
         applyCamera();
 
         const totalAnimationDuration = 6.0;
-        const specialNs = [12, 20, 21];
+        const specialNs = [14, 17];
         const introDur = 0.9;
         const outroDur = 0.4;
         tl.addLabel("captureStart", "start");
         tl.addLabel("allPointsLit", "start");
         const slotDur = (totalAnimationDuration - introDur - outroDur) / Math.max(1, specialNs.length);
-        const growthDur = slotDur * 0.78;
+        const growthDur = slotDur * 0.95;
         const postStarDur = Math.max(0, slotDur - growthDur);
 
         tl.to({}, { duration: introDur }, "start");
